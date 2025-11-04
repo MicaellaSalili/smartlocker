@@ -1,6 +1,7 @@
 class UserData {
   // Basic identity
-  static String userId = '';
+  static String mongoId = ''; // MongoDB _id for API calls
+  static String userId = ''; // RD#### format ID for display
   static String firstName = '';
   static String lastName = '';
   static String username = '';
@@ -22,7 +23,9 @@ class UserData {
 
   // Populate fields from backend response
   static void updateFromJson(Map<String, dynamic> json) {
-    userId = (json['id'] ?? json['_id'] ?? '').toString();
+    // Store both IDs separately - mongoId for API calls, userId for display
+    mongoId = (json['id'] ?? json['_id'] ?? '').toString();
+    userId = (json['userId'] ?? '').toString();
     firstName = (json['firstName'] ?? '').toString();
     lastName = (json['lastName'] ?? '').toString();
     username = (json['username'] ?? '').toString();

@@ -4,6 +4,8 @@ const userSchema = new mongoose.Schema(
   {
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
+    // Application-specific user identifier like 'RD####'
+    userId: { type: String, required: true, unique: true, index: true },
     username: { type: String, required: true, trim: true, unique: true, index: true },
     email: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     phone: { type: String, required: true, trim: true, unique: true, index: true },

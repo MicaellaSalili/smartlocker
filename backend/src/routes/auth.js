@@ -42,16 +42,44 @@ router.post('/signup', async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = await User.create({ firstName, lastName, username, email, phone, passwordHash });
+    // Generate a random application-specific userId like 'RD0000' (4 random digits)
+    // Ensure uniqueness by checking existing records. Bounded attempts to avoid infinite loop.
+    function randomFourDigits() {
+      return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    }
+
+    let userId;
+    const MAX_ATTEMPTS = 10;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const candidate = 'RD' + randomFourDigits();
+      // Check if candidate already exists
+      // Using lean() for lighter-weight query
+      // eslint-disable-next-line no-await-in-loop
+      const exists = await User.findOne({ userId: candidate }).lean();
+      if (!exists) {
+        userId = candidate;
+        break;
+      }
+    }
+    // If uniqueness couldn't be guaranteed in attempts, fall back to timestamp-based id
+    if (!userId) {
+      userId = 'RD' + String(Date.now()).slice(-8); // last 8 digits of timestamp
+    }
+
+    const user = await User.create({ firstName, lastName, username, email, phone, passwordHash, userId });
+
+    // Convert createdAt to PH time string for client display (Asia/Manila)
+    const createdAtPH = new Date(user.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' });
 
     return res.status(201).json({
       id: user._id,
+      userId: user.userId,
       firstName: user.firstName,
       lastName: user.lastName,
       username: user.username,
       email: user.email,
       phone: user.phone,
-      createdAt: user.createdAt,
+      createdAt: createdAtPH,
     });
   } catch (err) {
     console.error('Signup error:', err);
@@ -84,14 +112,17 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username/email or password' });
     }
 
+    // Return userId and createdAt converted to PH time for display
+    const createdAtPH = new Date(user.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' });
     return res.status(200).json({
       id: user._id,
+      userId: user.userId,
       firstName: user.firstName,
       lastName: user.lastName,
       username: user.username,
       email: user.email,
       phone: user.phone,
-      createdAt: user.createdAt,
+      createdAt: createdAtPH,
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -99,96 +130,110 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/change-password
-// Body: { id: string, oldPassword: string, newPassword: string }
-router.post('/change-password', async (req, res) => {
-  try {
-    const { id, oldPassword, newPassword } = req.body || {};
-
-    if (!id || !oldPassword || !newPassword) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    if (typeof newPassword !== 'string' || newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const ok = await bcrypt.compare(oldPassword, user.passwordHash);
-    if (!ok) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    user.passwordHash = passwordHash;
-    await user.save();
-
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error('Change password error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // POST /api/auth/update-profile
-// Body: { id: string, username: string, email: string, phone: string }
 router.post('/update-profile', async (req, res) => {
   try {
     let { id, username, email, phone } = req.body || {};
 
+    // Input validation
     if (!id || !username || !email || !phone) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    if (typeof email === 'string') email = email.trim().toLowerCase();
+    // Normalize inputs
     if (typeof username === 'string') username = username.trim();
+    if (typeof email === 'string') email = email.trim().toLowerCase();
     if (typeof phone === 'string') phone = phone.trim();
 
-    // Validate phone and normalize to E.164
+    // Check phone format using libphonenumber-js
     const parsed = parsePhoneNumberFromString(phone);
     if (!parsed || !parsed.isValid()) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
-    phone = parsed.number;
+    // Normalize to E.164 for storage
+    phone = parsed.number; // E.164
 
-    // Enforce uniqueness excluding current user
-    const conflict = await User.findOne({
-      _id: { $ne: id },
-      $or: [{ email }, { username }, { phone }],
-    });
-    if (conflict) {
-      let field = 'username';
-      if (conflict.email === email) field = 'email';
-      else if (conflict.phone === phone) field = 'phone';
-      return res.status(409).json({ error: `${field} already in use` });
+    // Validate MongoDB ObjectId format
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
     }
 
-    const updated = await User.findByIdAndUpdate(
-      id,
-      { $set: { username, email, phone } },
-      { new: true }
-    );
-
-    if (!updated) {
+    // Find user by id first
+    const user = await User.findById(id).exec();
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({
-      id: updated._id,
-      firstName: updated.firstName,
-      lastName: updated.lastName,
-      username: updated.username,
-      email: updated.email,
-      phone: updated.phone,
-      createdAt: updated.createdAt,
-    });
+    // Check for duplicate username/email/phone but exclude current user
+    const existing = await User.findOne({
+      _id: { $ne: id },
+      $or: [
+        { username },
+        { email },
+        { phone },
+      ],
+    }).exec();
+
+    if (existing) {
+      let field = 'username';
+      if (existing.email === email) field = 'email';
+      else if (existing.phone === phone) field = 'phone';
+      return res.status(409).json({ error: `${field} already in use` });
+    }
+
+    try {
+      // Update user fields
+      user.username = username;
+      user.email = email;
+      user.phone = phone;
+      await user.save();
+
+      // Convert dates to PH time for response
+      const createdAtPH = new Date(user.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+
+      // Return updated user data
+      return res.status(200).json({
+        id: user._id,
+        userId: user.userId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        createdAt: createdAtPH,
+      });
+    } catch (saveErr) {
+      // Log the specific save error
+      console.error('Error saving user:', {
+        userId: id,
+        error: saveErr.message,
+        stack: saveErr.stack,
+        validationErrors: saveErr.errors
+      });
+      
+      // Check for validation errors
+      if (saveErr.name === 'ValidationError') {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: Object.values(saveErr.errors).map(err => err.message)
+        });
+      }
+      
+      // Check for duplicate key errors
+      if (saveErr.code === 11000) {
+        return res.status(409).json({ error: 'This email, username, or phone is already in use' });
+      }
+      
+      throw saveErr; // Re-throw for general error handling
+    }
   } catch (err) {
-    console.error('Update profile error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    // Log the full error details
+    console.error('Update profile error:', {
+      userId: id,
+      error: err.message,
+      stack: err.stack,
+      code: err.code
+    });
   }
 });
 

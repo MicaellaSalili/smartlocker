@@ -54,7 +54,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
     setState(() => _savingProfile = true);
     AuthService.updateProfile(
-      userId: UserData.userId,
+      userId: UserData.mongoId, // Use MongoDB _id for API calls
       username: username,
       email: email,
       phone: phone,
