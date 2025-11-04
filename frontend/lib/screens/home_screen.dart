@@ -3,6 +3,7 @@ import 'input_details_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'alerts_screen.dart';
+import '../models/user_data.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,23 +22,23 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Map<String, String>> _steps = [
     {
       'image': 'assets/steps/step1.jpg',
-      'title': '1. Scan the Package',
-      'subtitle': 'Courier verifies parcel identity through QR/barcode of parcel with mobile app',
+      'title': '1. Input User Info',
+      'subtitle': 'Courier will input user information for verification',
     },
     {
       'image': 'assets/steps/step2.jpg',
-      'title': '2. Open Locker',
-      'subtitle': 'Locker opens automatically after verification',
+      'title': '2. Scan Parcel',
+      'subtitle': 'Scan the parcel barcode to register it in the system',
     },
     {
       'image': 'assets/steps/step3.jpg',
-      'title': '3. Place Parcel',
-      'subtitle': 'Place the parcel inside the locker and close the door',
+      'title': '3. Proceed Verification',
+      'subtitle': 'Process verification and assign locker',
     },
     {
       'image': 'assets/steps/step4.jpg',
-      'title': '4. Complete',
-      'subtitle': 'Delivery completed and recipient notified',
+      'title': '4. Capture detection',
+      'subtitle': 'Device captures image for security purposes',
     },
   ];
 
@@ -74,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Dots indicator
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -86,14 +87,16 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: active ? const Color(0xFF5B9BFF) : const Color(0xFFBDBDBD),
+                color: active
+                    ? const Color(0xFF5B9BFF)
+                    : const Color(0xFFBDBDBD),
                 shape: BoxShape.circle,
               ),
             );
           }),
         ),
         const SizedBox(height: 16),
-        
+
         // Carousel
         Expanded(
           child: Column(
@@ -117,7 +120,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             // Image section - takes most of the space
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  8,
+                                ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Container(
@@ -131,7 +139,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                       errorBuilder: (c, e, s) => Container(
                                         color: Colors.white,
                                         child: const Center(
-                                          child: Icon(Icons.image, size: 48, color: Colors.grey),
+                                          child: Icon(
+                                            Icons.image,
+                                            size: 48,
+                                            color: Colors.grey,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -139,13 +151,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ),
-                            
+
                             // Bottom white card - compact
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                               child: Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(16),
@@ -198,7 +213,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               // Step counter
               Padding(
-                padding: const EdgeInsets.only(bottom: 80.0), // Add padding to avoid FAB overlap
+                padding: const EdgeInsets.only(
+                  bottom: 80.0,
+                ), // Add padding to avoid FAB overlap
                 child: Text(
                   'Step ${_currentPage + 1}/${_steps.length}',
                   style: const TextStyle(
@@ -214,7 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
-
 
   void _onScanPressed() {
     Navigator.push(
@@ -240,7 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             label,
             style: TextStyle(
-              color: isActive ? const Color(0xFF5B9BFF) : const Color(0xFF9CA3AF),
+              color: isActive
+                  ? const Color(0xFF5B9BFF)
+                  : const Color(0xFF9CA3AF),
               fontSize: 12,
               fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
             ),
@@ -256,53 +274,56 @@ class _HomeScreenState extends State<HomeScreen> {
       // Make the top area mimic the rounded blue header from the design
       // Hide the AppBar when on Profile (index 1), Alerts (index 2), or Settings (index 3) tabs since they have their own headers
       appBar: _currentIndex == 1 || _currentIndex == 2 || _currentIndex == 3
-        ? null
-        : PreferredSize(
-            preferredSize: const Size.fromHeight(150),
-            child: AppBar(
-              automaticallyImplyLeading: false,
-              flexibleSpace: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5B9BFF),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+          ? null
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(150),
+              child: AppBar(
+                automaticallyImplyLeading: false,
+                flexibleSpace: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5B9BFF),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(24),
+                      bottomRight: Radius.circular(24),
+                    ),
                   ),
-                ),
-                child: SafeArea(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: const TextSpan(
-                          style: TextStyle(fontSize: 26, height: 1.3),
-                          children: [
-                            TextSpan(
-                              text: 'Welcome back,\n',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w400,
+                  child: SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24.0,
+                          vertical: 20.0,
+                        ),
+                        child: RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: const TextStyle(fontSize: 26, height: 1.3),
+                            children: [
+                              const TextSpan(
+                                text: 'Welcome back,\n',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w400,
+                                ),
                               ),
-                            ),
-                            TextSpan(
-                              text: 'User!',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                              TextSpan(
+                                text: UserData.firstName.isEmpty ? 'User!' : '${UserData.firstName}!',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
               ),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
             ),
-          ),
       body: _getCurrentPage(),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -358,9 +379,7 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: Colors.transparent,
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-            ),
+            decoration: const BoxDecoration(shape: BoxShape.circle),
             child: const Icon(
               Icons.qr_code_scanner,
               size: 28,
