@@ -307,7 +307,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               TextSpan(
-                                text: UserData.firstName.isEmpty ? 'User!' : '${UserData.firstName}!',
+                                text: UserData.firstName.isEmpty
+                                    ? 'User!'
+                                    : '${UserData.firstName}!',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
