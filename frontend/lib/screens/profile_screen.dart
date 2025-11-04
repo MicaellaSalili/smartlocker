@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'view_transaction_screen.dart';
-import 'settings/account_screen.dart';
+import '../models/user_data.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});

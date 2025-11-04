@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
-
-class UserData {
-  static String fullName = 'John Doe';
-  static String userId = 'C-4589';
-  static String username = 'johndoe8';
-  static String email = 'johnd@gmail.com';
-  static String phoneNumber = '09999999999';
-  static String address = 'Sta. Mesa Manila';
-  static String password = '••••••••••••••';
-}
+import '../../models/user_data.dart';
+import '../../services/auth_service.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -19,22 +11,27 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _passwordFormKey = GlobalKey<FormState>();
   late TextEditingController _fullNameController;
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
-  late TextEditingController _addressController;
-  late TextEditingController _passwordController;
+  // Change password controllers
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  bool _changingPassword = false;
+  bool _savingProfile = false;
+  
 
   @override
   void initState() {
     super.initState();
-    _fullNameController = TextEditingController(text: UserData.fullName);
-    _usernameController = TextEditingController(text: UserData.username);
-    _emailController = TextEditingController(text: UserData.email);
-    _phoneController = TextEditingController(text: UserData.phoneNumber);
-    _addressController = TextEditingController(text: UserData.address);
-    _passwordController = TextEditingController(text: UserData.password);
+  _fullNameController = TextEditingController(text: UserData.fullName);
+  _usernameController = TextEditingController(text: UserData.username);
+  _emailController = TextEditingController(text: UserData.email);
+  _phoneController = TextEditingController(text: UserData.phoneNumber);
   }
 
   @override
@@ -43,29 +40,105 @@ class _AccountScreenState extends State<AccountScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
-    _passwordController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   void _saveChanges() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        UserData.fullName = _fullNameController.text;
-        UserData.username = _usernameController.text;
-        UserData.email = _emailController.text;
-        UserData.phoneNumber = _phoneController.text;
-        UserData.address = _addressController.text;
-        UserData.password = _passwordController.text;
-      });
+    if (!_formKey.currentState!.validate()) return;
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
 
+    setState(() => _savingProfile = true);
+    AuthService.updateProfile(
+      userId: UserData.userId,
+      username: username,
+      email: email,
+      phone: phone,
+    ).then((result) {
+      if (!mounted) return;
+      if (result.ok && result.user != null) {
+        UserData.updateFromJson(result.user!);
+        _fullNameController.text = UserData.fullName;
+        _usernameController.text = UserData.username;
+        _emailController.text = UserData.email;
+        _phoneController.text = UserData.phoneNumber;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Changes saved successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.error ?? 'Failed to save changes')),
+        );
+      }
+    }).catchError((e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Changes saved successfully'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
+        SnackBar(content: Text('Error: $e')),
       );
+    }).whenComplete(() {
+      if (mounted) setState(() => _savingProfile = false);
+    });
+  }
+
+  Future<void> _handleChangePassword() async {
+    // Validate only the password form fields
+    final valid = _passwordFormKey.currentState?.validate() ?? false;
+    if (!valid) return;
+
+    final current = _currentPasswordController.text;
+    final next = _newPasswordController.text;
+    final confirm = _confirmPasswordController.text;
+    if (next.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 8 characters')),
+      );
+      return;
+    }
+    if (next != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    setState(() => _changingPassword = true);
+    try {
+      final result = await AuthService.changePassword(
+        userId: UserData.userId,
+        currentPassword: current,
+        newPassword: next,
+      );
+      if (!mounted) return;
+      if (result.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.error ?? 'Failed to update password')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _changingPassword = false);
     }
   }
 
@@ -149,16 +222,83 @@ class _AccountScreenState extends State<AccountScreen> {
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                     ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Address',
-                      controller: _addressController,
+                    const SizedBox(height: 32),
+                    // Change Password Section (separate form)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Change Password',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Form(
+                      key: _passwordFormKey,
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            label: 'Current Password',
+                            controller: _currentPasswordController,
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'This field is required';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            label: 'New Password',
+                            controller: _newPasswordController,
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'This field is required';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            label: 'Confirm New Password',
+                            controller: _confirmPasswordController,
+                            obscureText: true,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'This field is required';
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Password',
-                      controller: _passwordController,
-                      obscureText: true,
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _changingPassword ? null : _handleChangePassword,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4285F4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: _changingPassword
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text(
+                                'Update Password',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
                     ),
                     const SizedBox(height: 32),
                     // Save Changes Button
@@ -166,21 +306,27 @@ class _AccountScreenState extends State<AccountScreen> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _saveChanges,
+                        onPressed: _savingProfile ? null : _saveChanges,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _savingProfile
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text(
+                                'Save Changes',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -200,6 +346,7 @@ class _AccountScreenState extends State<AccountScreen> {
     bool obscureText = false,
     bool readOnly = false,
     TextInputType? keyboardType,
+    String? Function(String?)? validator,
   }) {
     return Row(
       children: [
@@ -242,7 +389,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   ? null
                   : const Icon(Icons.edit, size: 18, color: Colors.grey),
             ),
-            validator: (value) {
+            validator: validator ?? (value) {
               if (value == null || value.isEmpty) {
                 return 'This field is required';
               }

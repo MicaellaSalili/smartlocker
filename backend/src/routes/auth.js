@@ -99,4 +99,97 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/change-password
+// Body: { id: string, oldPassword: string, newPassword: string }
+router.post('/change-password', async (req, res) => {
+  try {
+    const { id, oldPassword, newPassword } = req.body || {};
+
+    if (!id || !oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const ok = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Change password error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/update-profile
+// Body: { id: string, username: string, email: string, phone: string }
+router.post('/update-profile', async (req, res) => {
+  try {
+    let { id, username, email, phone } = req.body || {};
+
+    if (!id || !username || !email || !phone) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (typeof email === 'string') email = email.trim().toLowerCase();
+    if (typeof username === 'string') username = username.trim();
+    if (typeof phone === 'string') phone = phone.trim();
+
+    // Validate phone and normalize to E.164
+    const parsed = parsePhoneNumberFromString(phone);
+    if (!parsed || !parsed.isValid()) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+    phone = parsed.number;
+
+    // Enforce uniqueness excluding current user
+    const conflict = await User.findOne({
+      _id: { $ne: id },
+      $or: [{ email }, { username }, { phone }],
+    });
+    if (conflict) {
+      let field = 'username';
+      if (conflict.email === email) field = 'email';
+      else if (conflict.phone === phone) field = 'phone';
+      return res.status(409).json({ error: `${field} already in use` });
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      id,
+      { $set: { username, email, phone } },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({
+      id: updated._id,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      username: updated.username,
+      email: updated.email,
+      phone: updated.phone,
+      createdAt: updated.createdAt,
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

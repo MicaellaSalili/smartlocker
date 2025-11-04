@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
+import '../models/user_data.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,6 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final result = await AuthService.login(identifier: identifier, password: password);
       if (!mounted) return;
       if (result.ok) {
+        // Update in-memory current user info from backend response
+        if (result.user != null) {
+          UserData.updateFromJson(result.user!);
+        }
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
