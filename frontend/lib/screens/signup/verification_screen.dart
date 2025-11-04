@@ -1,0 +1,1 @@
+// This screen has been removed. Signup is handled directly in PersonalInfoScreen.

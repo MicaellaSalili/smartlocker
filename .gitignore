@@ -1,0 +1,53 @@
+# ---- General ----
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# ---- Node / Backend ----
+backend/node_modules/
+backend/.env
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+backend/.nyc_output/
+backend/coverage/
+
+# ---- Flutter / Dart ----
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+**/build/
+
+# Flutter specific platform builds
+frontend/ios/Flutter/Flutter.podspec
+frontend/ios/Flutter/ephemeral/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/DerivedData/
+frontend/macos/Flutter/ephemeral/
+frontend/macos/Pods/
+frontend/linux/flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
+
+# Android local/gradle
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/**/captures/
+frontend/android/**/outputs/logs/
+frontend/android/**/generated/
+
+# Keystore & signing (if present)
+**/key.properties
+**/*.keystore
+**/*.jks
+
+# VS Code
+.vscode/
+
+# ---- Other env files (optional) ----
+.env
+*.env.local
