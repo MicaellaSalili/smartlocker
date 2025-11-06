@@ -627,29 +627,27 @@ class _LiveScreenState extends State<LiveScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close dialog
-                // Remove all screens and go back to home, then navigate to transaction
+                // Get transaction data before navigation
+                final transactionManager = Provider.of<TransactionManager>(context, listen: false);
+                final transactionData = {
+                  'id': 'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
+                  'recipient': 'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
+                  'locker': 'Locker: Smart Locker 001',
+                  'status': 'Delivered',
+                  'color': Colors.green,
+                };
+                
+                // Close dialog first
+                Navigator.of(dialogContext).pop();
+                
+                // Navigate to ViewTransactionScreen and replace entire stack
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) => const HomeScreen(),
-                  ),
-                  (route) => false,
-                );
-                // Then navigate to ViewTransactionScreen
-                final transactionManager = Provider.of<TransactionManager>(context, listen: false);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
                     builder: (context) => ViewTransactionScreen(
-                      transaction: {
-                        'id': 'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
-                        'recipient': 'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
-                        'locker': 'Locker: Smart Locker 001',
-                        'status': 'Delivered',
-                        'color': Colors.green,
-                      },
+                      transaction: transactionData,
                     ),
                   ),
+                  (route) => false, // Remove all previous routes
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -675,9 +673,8 @@ class _LiveScreenState extends State<LiveScreen> {
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop();
-                Navigator.pushAndRemoveUntil(
-                  context,
+                Navigator.of(dialogContext).pop(); // Close dialog
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
                     builder: (context) => const HomeScreen(),
                   ),
