@@ -14,7 +14,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _codeController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _codeSent = false;
 
@@ -31,13 +31,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
       final email = _emailController.text.trim();
       final result = await AuthService.requestPasswordReset(email: email);
-      
+
       if (!mounted) return;
-      
+
       if (result.ok) {
         setState(() => _codeSent = true);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -53,9 +53,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -63,31 +63,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
-    
+
     if (newPassword != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
 
     setState(() => _isLoading = true);
-    
+
     try {
       final email = _emailController.text.trim();
       final code = _codeController.text.trim();
-      
+
       final result = await AuthService.resetPassword(
         email: email,
         code: code,
         newPassword: newPassword,
       );
-      
+
       if (!mounted) return;
-      
+
       if (result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -103,9 +103,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -128,20 +128,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             children: [
               const Text(
                 'Forgot your password?',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 _codeSent
                     ? 'Enter the code sent to your email and your new password.'
                     : 'Enter your email address and we\'ll send you a code to reset your password.',
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 24),
               TextFormField(
@@ -228,7 +222,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ],
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isLoading ? null : (_codeSent ? _resetPassword : _requestCode),
+                onPressed: _isLoading
+                    ? null
+                    : (_codeSent ? _resetPassword : _requestCode),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: Colors.blue,
