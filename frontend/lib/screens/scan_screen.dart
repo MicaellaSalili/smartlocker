@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 import 'live_screen.dart';
 
-class ScanScreen extends StatelessWidget {
+class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
+
+  @override
+  State<ScanScreen> createState() => _ScanScreenState();
+}
+
+class _ScanScreenState extends State<ScanScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Show pre-scan guide once when the screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showPreScanGuide(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,6 +197,78 @@ class ScanScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showPreScanGuide(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: SizedBox(
+                    height: 220,
+                    width: 220,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/guide.png',
+                        fit: BoxFit.contain, // show entire image without cropping
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '1. Center the PACKAGE',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '2. Ensure WAYBILL & QR/BARCODE are FLAT & FACING FRONT',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '3. Check for CLEAR, Bright LIGHTING',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4285F4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Got it! Start Scanning'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).maybePop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

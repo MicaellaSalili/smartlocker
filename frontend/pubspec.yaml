@@ -22,4 +22,5 @@ flutter:
   
   assets:
     - assets/logo.png
+    - assets/guide.png
     - assets/steps/
