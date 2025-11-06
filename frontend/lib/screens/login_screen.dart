@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'forgot_password_screen.dart';
 import '../services/auth_service.dart';
-import '../models/user_data.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,10 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final result = await AuthService.login(identifier: identifier, password: password);
       if (!mounted) return;
       if (result.ok) {
-        // Update in-memory current user info from backend response
-        if (result.user != null) {
-          UserData.updateFromJson(result.user!);
-        }
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -186,11 +182,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       Center(
                         child: TextButton(
                           onPressed: () {
-                            // TODO: Implement forgot password
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ForgotPasswordScreen(),
+                              ),
+                            );
                           },
                           child: const Text(
                             'Forgot Password?',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

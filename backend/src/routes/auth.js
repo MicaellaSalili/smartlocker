@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const User = require('../models/User');
 
@@ -234,6 +235,74 @@ router.post('/update-profile', async (req, res) => {
       stack: err.stack,
       code: err.code
     });
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+      // For security, don't reveal whether the email exists
+      return res.status(200).json({ message: 'If your email is registered, you will receive a reset code.' });
+    }
+
+    // Generate a random 6-digit code
+    const resetCode = crypto.randomInt(100000, 999999).toString();
+    const resetCodeExpires = new Date(Date.now() + 30 * 60000); // 30 minutes
+
+    // Save the reset code and expiration
+    user.resetCode = resetCode;
+    user.resetCodeExpires = resetCodeExpires;
+    await user.save();
+
+    // TODO: In production, send this via email service
+    console.log(`Reset code for ${email}: ${resetCode}`); // For testing
+
+    return res.status(200).json({ message: 'If your email is registered, you will receive a reset code.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    return res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+      resetCode: code,
+      resetCodeExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+
+    // Hash the new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset code
+    user.passwordHash = passwordHash;
+    user.resetCode = undefined;
+    user.resetCodeExpires = undefined;
+    await user.save();
+
+    return res.status(200).json({ message: 'Password reset successful' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
