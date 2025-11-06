@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'dart:io';
+import '../services/tflite_processor.dart';
+import '../services/transaction_manager.dart';
 import 'live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -9,13 +16,152 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
+  bool _isProcessing = false;
+
   @override
   void initState() {
     super.initState();
+    _initializeCamera();
     // Show pre-scan guide once when the screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showPreScanGuide(context);
     });
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras != null && _cameras!.isNotEmpty) {
+        _cameraController = CameraController(
+          _cameras![0],
+          ResolutionPreset.high,
+          enableAudio: false,
+        );
+        await _cameraController!.initialize();
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _captureAndLog() async {
+    if (_isProcessing || _cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // 1. Take the photo
+      final XFile image = await _cameraController!.takePicture();
+
+      // 2. Call TFLiteProcessor methods
+      // Extract barcode ID and OCR details
+      final ocrResult = await TFLiteProcessor.extractBarcodeIdAndOcr(image);
+      final waybillId = ocrResult['waybillId'] ?? '';
+      final waybillDetails = ocrResult['waybillDetails'] ?? '';
+
+      // Generate embedding vector
+      final Uint8List imageBytes = await File(image.path).readAsBytes();
+      final embedding = await TFLiteProcessor.generateEmbedding(imageBytes);
+
+      // 3. Call TransactionManager.logTransactionData
+      if (mounted) {
+        Provider.of<TransactionManager>(context, listen: false).logTransactionData(
+          waybillId: waybillId,
+          waybillDetails: waybillDetails,
+          embedding: embedding,
+        );
+
+        // 4. Navigate to success screen (using dialog then LiveScreen)
+        _showScanSuccessDialog();
+      }
+    } catch (e) {
+      debugPrint('Error capturing and logging: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  void _showScanSuccessDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                border: Border.all(color: Colors.green),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.check_circle, size: 64, color: Colors.green),
+                  SizedBox(height: 8),
+                  Text(
+                    'Package Scanned Successfully',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Package scanned and verified. You may capture a photo for placement evidence.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // close dialog
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LiveScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4285F4),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Text('Proceed to Live Detection'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -57,30 +203,13 @@ class _ScanScreenState extends State<ScanScreen> {
                   border: Border.all(color: Colors.grey.shade300, width: 2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Stack(
-                  children: [
-                    // Corner brackets
-                    Positioned(
-                      top: 60,
-                      left: 60,
-                      child: _buildCorner(top: true, left: true),
-                    ),
-                    Positioned(
-                      top: 60,
-                      right: 60,
-                      child: _buildCorner(top: true, left: false),
-                    ),
-                    Positioned(
-                      bottom: 60,
-                      left: 60,
-                      child: _buildCorner(top: false, left: true),
-                    ),
-                    Positioned(
-                      bottom: 60,
-                      right: 60,
-                      child: _buildCorner(top: false, left: false),
-                    ),
-                  ],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _isCameraInitialized && _cameraController != null
+                      ? CameraPreview(_cameraController!)
+                      : const Center(
+                          child: CircularProgressIndicator(),
+                        ),
                 ),
               ),
             ),
@@ -90,7 +219,7 @@ class _ScanScreenState extends State<ScanScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                'Position the barcode or QR code within the frame to scan the package',
+                'Position the entire package, waybill, and QR/barcode. Ensure the view is clear.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.grey,
@@ -106,54 +235,7 @@ class _ScanScreenState extends State<ScanScreen> {
               child: Column(
                 children: [
                   ElevatedButton(
-                    onPressed: () {
-                      // Simulate scan success and show a pop-up (dialog)
-                      showDialog<void>(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  border: Border.all(color: Colors.green),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  children: const [
-                                    Icon(Icons.check_circle, size: 64, color: Colors.green),
-                                    SizedBox(height: 8),
-                                    Text('Package Scanned Successfully', style: TextStyle(fontWeight: FontWeight.bold)),
-                                    SizedBox(height: 8),
-                                    Text('Package scanned and verified. You may capture a photo for placement evidence.', textAlign: TextAlign.center),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop(); // close dialog
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const LiveScreen()),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4285F4)),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-                                  child: Text('Proceed to Live Detection'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: _isProcessing ? null : _captureAndLog,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4285F4),
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -162,14 +244,23 @@ class _ScanScreenState extends State<ScanScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Start Scanning',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Capture & Log Package',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
@@ -269,21 +360,6 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildCorner({required bool top, required bool left}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        border: Border(
-          top: top ? const BorderSide(color: Colors.grey, width: 3) : BorderSide.none,
-          bottom: !top ? const BorderSide(color: Colors.grey, width: 3) : BorderSide.none,
-          left: left ? const BorderSide(color: Colors.grey, width: 3) : BorderSide.none,
-          right: !left ? const BorderSide(color: Colors.grey, width: 3) : BorderSide.none,
-        ),
-      ),
     );
   }
 }

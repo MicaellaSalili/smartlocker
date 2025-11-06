@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/transaction_manager.dart';
 import 'scan_screen.dart';
 
 class InputDetailsScreen extends StatefulWidget {
@@ -23,32 +25,25 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
   }
 
   void _handleProceed() {
-    // Validate the form
     if (_formKey.currentState!.validate()) {
-      // Get the values - these can be passed to ScanScreen if needed
-      // final firstName = _firstNameController.text.trim();
-      // final lastName = _lastNameController.text.trim();
-      // final phoneNumber = _phoneNumberController.text.trim();
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      final phoneNumber = _phoneNumberController.text.trim();
 
-      // Navigate to ScanScreen with the recipient details
+      // Call TransactionManager to store audit data
+      Provider.of<TransactionManager>(context, listen: false).updateAuditData(
+        firstName: firstName,
+        lastName: lastName,
+        phoneNumber: phoneNumber,
+      );
+
+      // Navigate to ScanScreen
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const ScanScreen(),
         ),
       );
-
-      // You can also pass the data to ScanScreen if needed:
-      // Navigator.push(
-      //   context,
-      //   MaterialPageRoute(
-      //     builder: (context) => ScanScreen(
-      //       firstName: firstName,
-      //       lastName: lastName,
-      //       phoneNumber: phoneNumber,
-      //     ),
-      //   ),
-      // );
     }
   }
 
