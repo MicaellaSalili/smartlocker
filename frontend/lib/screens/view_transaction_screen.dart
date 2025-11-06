@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 class ViewTransactionScreen extends StatelessWidget {
   final Map<String, dynamic> transaction;
 
-  const ViewTransactionScreen({
-    super.key,
-    required this.transaction,
-  });
+  const ViewTransactionScreen({super.key, required this.transaction});
 
   String _formatTimestamp(DateTime? timestamp) {
     if (timestamp == null) return '2025-10-27 10:30:00';
@@ -61,7 +58,7 @@ class ViewTransactionScreen extends StatelessWidget {
       body: Column(
         children: [
           const SizedBox(height: 16),
-          
+
           // Status Badge
           Center(
             child: Container(
@@ -81,200 +78,202 @@ class ViewTransactionScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           Expanded(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Transaction and Locker Info
-                    _buildInfoSection(
-                      'TRANSACTION AND LOCKER INFO',
-                      [
-                        'Transaction ID: 000000',
-                        'Locker ID: 222',
-                        'Compartment ID: 222',
-                        'Courier ID: 222',
-                        'TIMESTAMP: ${_formatTimestamp(transaction['timestamp'])}',
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Recipient and Parcel Info
-                    _buildInfoSection(
-                      'RECEIPIENT AND PARCEL INFO',
-                      [
-                        'Recipient: Ashanti Villadiego',
-                        'Contact Number: 09513316622',
-                        'Parcel ID: *********',
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    // Waybill Info
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 8, bottom: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Other Information from the Waybill',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Transaction and Locker Info
+                  _buildInfoSection('TRANSACTION AND LOCKER INFO', [
+                    'Transaction ID: 000000',
+                    'Locker ID: 222',
+                    'Compartment ID: 222',
+                    'Courier ID: 222',
+                    'TIMESTAMP: ${_formatTimestamp(transaction['timestamp'])}',
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Recipient and Parcel Info
+                  _buildInfoSection('RECEIPIENT AND PARCEL INFO', [
+                    'Recipient: Ashanti Villadiego',
+                    'Contact Number: 09513316622',
+                    'Parcel ID: *********',
+                  ]),
+                  const SizedBox(height: 8),
+
+                  // Waybill Info
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 8, bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Other Information from the Waybill',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
                           ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Waybill Info 1',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Waybill Info 2',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Divider
-                    const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
-                    const SizedBox(height: 16),
-                    
-                    // Timeline and History
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        'TIMELINE AND HISTORY',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
                         ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Waybill Info 1',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Waybill Info 2',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Divider
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Timeline and History
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      'TIMELINE AND HISTORY',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Column(
-                        children: [
-                          _buildTimelineRow('Parcel Waybill Scan:', '10:30:00'),
-                          const SizedBox(height: 6),
-                          _buildTimelineRow('Live Parcel-Delivery Detection:', '10:31:00'),
-                          const SizedBox(height: 6),
-                          _buildTimelineRow('Successful Delivery (Waiting for Pickup):', '10:32:00'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    
-                    // Divider
-                    const Divider(height: 1, thickness: 1, color: Color(0xFFE0E0E0)),
-                    const SizedBox(height: 16),
-                    
-                    // Proof of Delivery
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text(
-                            'PROOF OF DELIVERY',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'JPG',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'MP4',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Action Buttons
-                    Row(
+                  ),
+                  const SizedBox(height: 12),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              // Report issue functionality
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF5B9BFF),
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: const Text(
-                              'REPORT ISSUE',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
+                        _buildTimelineRow('Parcel Waybill Scan:', '10:30:00'),
+                        const SizedBox(height: 6),
+                        _buildTimelineRow(
+                          'Live Parcel-Delivery Detection:',
+                          '10:31:00',
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              // Share receipt functionality
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE0E0E0),
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: const Text(
-                              'SHARE RECEIPT',
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
+                        const SizedBox(height: 6),
+                        _buildTimelineRow(
+                          'Successful Delivery (Waiting for Pickup):',
+                          '10:32:00',
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Divider
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Proof of Delivery
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          'PROOF OF DELIVERY',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'JPG',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'MP4',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Report issue functionality
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF5B9BFF),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'REPORT ISSUE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Share receipt functionality
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE0E0E0),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'SHARE RECEIPT',
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -308,17 +307,19 @@ class ViewTransactionScreen extends StatelessWidget {
           ),
           if (items.isNotEmpty) ...[
             const SizedBox(height: 12),
-            ...items.map((item) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                item,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.black87,
-                  height: 1.5,
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  item,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            )),
+            ),
           ],
         ],
       ),
@@ -341,13 +342,7 @@ class ViewTransactionScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          time,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.black87,
-          ),
-        ),
+        Text(time, style: const TextStyle(fontSize: 11, color: Colors.black87)),
       ],
     );
   }
