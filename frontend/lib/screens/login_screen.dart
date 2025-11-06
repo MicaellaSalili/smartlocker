@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
 import '../services/auth_service.dart';
+import '../models/user_data.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,7 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
       if (!mounted) return;
-      if (result.ok) {
+      if (result.ok && result.user != null) {
+        // Populate global user data so profile and other screens can display it
+        UserData.updateFromJson(result.user!);
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
