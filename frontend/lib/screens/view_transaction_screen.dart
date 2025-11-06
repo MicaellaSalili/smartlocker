@@ -21,10 +21,23 @@ class ViewTransactionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String statusRaw = (transaction['status'] ?? 'Delivered').toString();
+    final String statusLower = statusRaw.toLowerCase();
+    Color headerColor;
+    if (statusLower == 'delivered') {
+      headerColor = const Color(0xFF5B9BFF); // blue
+    } else if (statusLower == 'claimed') {
+      headerColor = Colors.green; // claimed -> green
+    } else if (statusLower == 'failed') {
+      headerColor = Colors.red; // failed -> red
+    } else {
+      headerColor = const Color(0xFF5B9BFF);
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF5B9BFF),
+        backgroundColor: headerColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -54,11 +67,11 @@ class ViewTransactionScreen extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF5B9BFF),
+                color: headerColor,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                transaction['status'] ?? 'Delivered',
+                statusRaw,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
