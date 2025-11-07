@@ -16,7 +16,7 @@ class AuthService {
       final res = await http
           .post(
             uri,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'firstName': firstName,
               'lastName': lastName,
@@ -29,11 +29,18 @@ class AuthService {
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 201) {
-        return (ok: true, error: null, user: jsonDecode(res.body) as Map<String, dynamic>);
+        return (
+          ok: true,
+          error: null,
+          user: jsonDecode(res.body) as Map<String, dynamic>,
+        );
       }
 
-      final body = res.body.isNotEmpty ? jsonDecode(res.body) as Map<String, dynamic> : <String, dynamic>{};
-      final error = body['error']?.toString() ?? 'Signup failed (HTTP ${res.statusCode})';
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error =
+          body['error']?.toString() ?? 'Signup failed (HTTP ${res.statusCode})';
       return (ok: false, error: error, user: null);
     } catch (e) {
       return (ok: false, error: e.toString(), user: null);
@@ -49,20 +56,24 @@ class AuthService {
       final res = await http
           .post(
             uri,
-            headers: { 'Content-Type': 'application/json' },
-            body: jsonEncode({
-              'identifier': identifier,
-              'password': password,
-            }),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'identifier': identifier, 'password': password}),
           )
           .timeout(const Duration(seconds: 15));
 
       if (res.statusCode == 200) {
-        return (ok: true, error: null, user: jsonDecode(res.body) as Map<String, dynamic>);
+        return (
+          ok: true,
+          error: null,
+          user: jsonDecode(res.body) as Map<String, dynamic>,
+        );
       }
 
-      final body = res.body.isNotEmpty ? jsonDecode(res.body) as Map<String, dynamic> : <String, dynamic>{};
-      final error = body['error']?.toString() ?? 'Login failed (HTTP ${res.statusCode})';
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error =
+          body['error']?.toString() ?? 'Login failed (HTTP ${res.statusCode})';
       return (ok: false, error: error, user: null);
     } catch (e) {
       return (ok: false, error: e.toString(), user: null);
@@ -79,7 +90,7 @@ class AuthService {
       final res = await http
           .post(
             uri,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'id': userId,
               'oldPassword': currentPassword,
@@ -92,15 +103,20 @@ class AuthService {
         return (ok: true, error: null);
       }
 
-      final body = res.body.isNotEmpty ? jsonDecode(res.body) as Map<String, dynamic> : <String, dynamic>{};
-      final error = body['error']?.toString() ?? 'Change password failed (HTTP ${res.statusCode})';
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error =
+          body['error']?.toString() ??
+          'Change password failed (HTTP ${res.statusCode})';
       return (ok: false, error: error);
     } catch (e) {
       return (ok: false, error: e.toString());
     }
   }
 
-  static Future<({bool ok, String? error, Map<String, dynamic>? user})> updateProfile({
+  static Future<({bool ok, String? error, Map<String, dynamic>? user})>
+  updateProfile({
     required String userId,
     required String username,
     required String email,
@@ -111,7 +127,7 @@ class AuthService {
       final res = await http
           .post(
             uri,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'id': userId,
               'username': username,
@@ -126,11 +142,78 @@ class AuthService {
         return (ok: true, error: null, user: body);
       }
 
-      final body = res.body.isNotEmpty ? jsonDecode(res.body) as Map<String, dynamic> : <String, dynamic>{};
-      final error = body['error']?.toString() ?? 'Update profile failed (HTTP ${res.statusCode})';
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error =
+          body['error']?.toString() ??
+          'Update profile failed (HTTP ${res.statusCode})';
       return (ok: false, error: error, user: null);
     } catch (e) {
       return (ok: false, error: e.toString(), user: null);
+    }
+  }
+
+  // Step 1: Request password reset
+  static Future<({bool ok, String? error})> requestPasswordReset({
+    required String email,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/auth/forgot-password');
+    try {
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (res.statusCode == 200) {
+        return (ok: true, error: null);
+      }
+
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error =
+          body['error']?.toString() ?? 'Failed to request password reset';
+      return (ok: false, error: error);
+    } catch (e) {
+      return (ok: false, error: e.toString());
+    }
+  }
+
+  // Step 2: Reset password with code
+  static Future<({bool ok, String? error})> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/api/auth/reset-password');
+    try {
+      final res = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'code': code,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (res.statusCode == 200) {
+        return (ok: true, error: null);
+      }
+
+      final body = res.body.isNotEmpty
+          ? jsonDecode(res.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      final error = body['error']?.toString() ?? 'Failed to reset password';
+      return (ok: false, error: error);
+    } catch (e) {
+      return (ok: false, error: e.toString());
     }
   }
 }

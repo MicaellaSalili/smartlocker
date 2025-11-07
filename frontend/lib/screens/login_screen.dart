@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'forgot_password_screen.dart';
 import '../services/auth_service.dart';
 import '../models/user_data.dart';
 
@@ -21,34 +22,37 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
     if (identifier.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter username/email and password')),
+        const SnackBar(
+          content: Text('Please enter username/email and password'),
+        ),
       );
       return;
     }
     setState(() => _submitting = true);
     try {
-      final result = await AuthService.login(identifier: identifier, password: password);
+      final result = await AuthService.login(
+        identifier: identifier,
+        password: password,
+      );
       if (!mounted) return;
-      if (result.ok) {
-        // Update in-memory current user info from backend response
-        if (result.user != null) {
-          UserData.updateFromJson(result.user!);
-        }
+      if (result.ok && result.user != null) {
+        // Populate global user data so profile and other screens can display it
+        UserData.updateFromJson(result.user!);
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
           (route) => false,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.error ?? 'Login failed')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result.error ?? 'Login failed')));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -149,7 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: _submitting ? null : () => _handleLogin(context),
+                        onPressed: _submitting
+                            ? null
+                            : () => _handleLogin(context),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: Colors.blue,
@@ -160,7 +166,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         child: _submitting
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                             : const Text(
                                 'Login',
                                 style: TextStyle(fontSize: 16),
@@ -186,11 +199,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       Center(
                         child: TextButton(
                           onPressed: () {
-                            // TODO: Implement forgot password
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ForgotPasswordScreen(),
+                              ),
+                            );
                           },
                           child: const Text(
                             'Forgot Password?',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

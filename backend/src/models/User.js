@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, trim: true, lowercase: true, unique: true, index: true },
     phone: { type: String, required: true, trim: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
+    resetCode: { type: String, sparse: true },
+    resetCodeExpires: { type: Date },
     createdAt: { type: Date, default: Date.now }
   },
   { versionKey: false }
