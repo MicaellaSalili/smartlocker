@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/transaction_manager.dart';
 import 'scan_screen.dart';
 
 class InputDetailsScreen extends StatefulWidget {
-  const InputDetailsScreen({super.key});
+  final String? lockerId;
+
+  const InputDetailsScreen({super.key, this.lockerId});
 
   @override
   State<InputDetailsScreen> createState() => _InputDetailsScreenState();
@@ -22,33 +26,31 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
     super.dispose();
   }
 
-  void _handleProceed() {
-    // Validate the form
-    if (_formKey.currentState!.validate()) {
-      // Get the values - these can be passed to ScanScreen if needed
-      // final firstName = _firstNameController.text.trim();
-      // final lastName = _lastNameController.text.trim();
-      // final phoneNumber = _phoneNumberController.text.trim();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+  }
 
-      // Navigate to ScanScreen with the recipient details
+  void _handleProceed() {
+    if (_formKey.currentState!.validate()) {
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      final phoneNumber = _phoneNumberController.text.trim();
+
+      // Call TransactionManager to store audit data
+      Provider.of<TransactionManager>(context, listen: false).updateAuditData(
+        firstName: firstName,
+        lastName: lastName,
+        phoneNumber: phoneNumber,
+      );
+
+      // Navigate to ScanScreen
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const ScanScreen(),
+          builder: (context) => ScanScreen(lockerId: widget.lockerId),
         ),
       );
-
-      // You can also pass the data to ScanScreen if needed:
-      // Navigator.push(
-      //   context,
-      //   MaterialPageRoute(
-      //     builder: (context) => ScanScreen(
-      //       firstName: firstName,
-      //       lastName: lastName,
-      //       phoneNumber: phoneNumber,
-      //     ),
-      //   ),
-      // );
     }
   }
 
@@ -86,6 +88,39 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 40),
+
+              // Locker scanned info (if provided)
+              if (widget.lockerId != null) ...[
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    border: Border.all(color: Colors.green, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.check_circle, size: 48, color: Colors.green),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Locker scanned',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.lockerId ?? '',
+                        style: TextStyle(color: Colors.green.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // Envelope Icon
               Container(
