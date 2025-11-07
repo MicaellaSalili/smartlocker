@@ -3,8 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const Parcel = require('./models/Parcel');
+const mqttService = require('./services/mqttService');
 
 const app = express();
+
+// Initialize MQTT connection
+mqttService.connect();
 
 // Middleware
 app.use(cors());
@@ -21,6 +25,7 @@ app.post('/api/parcel/log', async (req, res) => {
       recipient_first_name,
       recipient_last_name,
       recipient_phone,
+      locker_id,
       waybill_id,
       waybill_details,
       image_embedding_vector
@@ -28,11 +33,11 @@ app.post('/api/parcel/log', async (req, res) => {
 
     // Validate required fields
     if (!recipient_first_name || !recipient_last_name || !recipient_phone || 
-        !waybill_id || !waybill_details || !image_embedding_vector) {
+        !locker_id || !waybill_id || !waybill_details || !image_embedding_vector) {
       return res.status(400).json({ 
         error: 'Missing required fields',
         required: ['recipient_first_name', 'recipient_last_name', 'recipient_phone', 
-                   'waybill_id', 'waybill_details', 'image_embedding_vector']
+                   'locker_id', 'waybill_id', 'waybill_details', 'image_embedding_vector']
       });
     }
 
@@ -48,6 +53,7 @@ app.post('/api/parcel/log', async (req, res) => {
       recipient_first_name,
       recipient_last_name,
       recipient_phone,
+      locker_id,
       waybill_id,
       waybill_details,
       image_embedding_vector,
@@ -133,9 +139,13 @@ app.put('/api/parcel/success/:id', async (req, res) => {
     parcel.status = 'VERIFIED_SUCCESS';
     await parcel.save();
 
+    // Door is already unlocked from QR scan, no need to unlock again
+    // Just update the status in the database
+
     res.json({
       message: 'Transaction verified successfully',
       transaction_id: parcel._id,
+      locker_id: parcel.locker_id,
       waybill_id: parcel.waybill_id,
       status: parcel.status,
       initial_timestamp: parcel.initial_timestamp,
@@ -150,6 +160,74 @@ app.put('/api/parcel/success/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating transaction:', error);
     res.status(500).json({ error: 'Failed to update transaction', details: error.message });
+  }
+});
+
+// PUT /api/locker/:lockerId/lock - Lock the locker door (called after courier closes door)
+app.put('/api/locker/:lockerId/lock', async (req, res) => {
+  try {
+    const { lockerId } = req.params;
+
+    if (!lockerId) {
+      return res.status(400).json({ error: 'Locker ID is required' });
+    }
+
+    // 🔒 LOCK THE LOCKER via MQTT
+    const lockSuccess = mqttService.lockLocker(lockerId);
+
+    if (lockSuccess) {
+      res.json({
+        message: 'Lock command sent successfully',
+        locker_id: lockerId,
+        status: 'LOCKED',
+        timestamp: new Date()
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to send lock command',
+        locker_id: lockerId
+      });
+    }
+
+  } catch (error) {
+    console.error('Error sending lock command:', error);
+    res.status(500).json({ error: 'Failed to send lock command', details: error.message });
+  }
+});
+
+// PUT /api/locker/:lockerId/unlock - Unlock the locker door (called after QR scan)
+app.put('/api/locker/:lockerId/unlock', async (req, res) => {
+  try {
+    const { lockerId } = req.params;
+
+    if (!lockerId) {
+      return res.status(400).json({ error: 'Locker ID is required' });
+    }
+
+    // 🔓 UNLOCK THE LOCKER via MQTT
+    const unlockSuccess = mqttService.unlockLocker(lockerId, {
+      trigger: 'QR_SCAN',
+      timestamp: new Date().toISOString()
+    });
+
+    if (unlockSuccess) {
+      console.log(`✅ Unlock command sent to locker ${lockerId} after QR scan`);
+      res.json({
+        message: 'Unlock command sent successfully',
+        locker_id: lockerId,
+        status: 'UNLOCKED',
+        timestamp: new Date()
+      });
+    } else {
+      res.status(500).json({
+        error: 'Failed to send unlock command',
+        locker_id: lockerId
+      });
+    }
+
+  } catch (error) {
+    console.error('Error sending unlock command:', error);
+    res.status(500).json({ error: 'Failed to send unlock command', details: error.message });
   }
 });
 

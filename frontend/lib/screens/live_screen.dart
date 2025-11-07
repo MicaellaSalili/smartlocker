@@ -290,7 +290,7 @@ class _LiveScreenState extends State<LiveScreen> {
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const InputDetailsScreen()),
+          MaterialPageRoute(builder: (context) => const InputDetailsScreen(lockerId: null)),
           (route) => false,
         );
       }
@@ -576,7 +576,26 @@ class _LiveScreenState extends State<LiveScreen> {
     }
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog() async {
+    // Immediately send lock command to ESP32
+    await _sendLockCommand();
+    
+    // Show success dialog
+    _showFinalSuccessDialog();
+  }
+
+  Future<void> _sendLockCommand() async {
+    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
+    final success = await transactionManager.lockLocker();
+    
+    if (success) {
+      debugPrint('✅ Lock command sent to ESP32 after successful verification');
+    } else {
+      debugPrint('⚠️  Failed to send lock command to ESP32');
+    }
+  }
+
+  void _showFinalSuccessDialog() {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -614,7 +633,16 @@ class _LiveScreenState extends State<LiveScreen> {
                   ),
                   SizedBox(height: 12),
                   Text(
-                    'Package has been verified and successfully placed in the locker. Transaction complete!',
+                    'Package Placed Successfully',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2C3E50),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Verification complete. Door has been locked automatically.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,

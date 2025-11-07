@@ -26,12 +26,14 @@ class TransactionData {
 class TransactionManager extends ChangeNotifier {
   TransactionData? _auditData;
   String? _transactionId; // MongoDB _id
+  String? _lockerId;
   String? _waybillId;
   String? _waybillDetails;
   List<double>? _embedding;
 
   TransactionData? get auditData => _auditData;
   String? get transactionId => _transactionId;
+  String? get lockerId => _lockerId;
   String? get waybillId => _waybillId;
   String? get waybillDetails => _waybillDetails;
   List<double>? get embedding => _embedding;
@@ -97,12 +99,14 @@ class TransactionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Log transaction data with waybill info and embedding
+  // Log transaction data with locker ID, waybill info and embedding
   Future<void> logTransactionData({
+    required String lockerId,
     required String waybillId,
     required String waybillDetails,
     required List<double> embedding,
   }) async {
+    _lockerId = lockerId;
     _waybillId = waybillId;
     _waybillDetails = waybillDetails;
     _embedding = embedding;
@@ -118,6 +122,9 @@ class TransactionManager extends ChangeNotifier {
       'recipient_first_name': _auditData!.firstName,
       'recipient_last_name': _auditData!.lastName,
       'recipient_phone': _auditData!.phoneNumber,
+      
+      // Locker ID
+      'locker_id': lockerId,
       
       // Reference data (waybill and embedding) - match backend field names
       'waybill_id': waybillId,
@@ -223,6 +230,7 @@ class TransactionManager extends ChangeNotifier {
         
         // Clear local data after successful deletion
         _transactionId = null;
+        _lockerId = null;
         _waybillId = null;
         _waybillDetails = null;
         _embedding = null;
@@ -237,6 +245,38 @@ class TransactionManager extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error deleting transaction: $e');
+      return false;
+    }
+  }
+
+  // Lock the locker door (called after courier closes door)
+  // Sends PUT request to /api/locker/:lockerId/lock
+  Future<bool> lockLocker() async {
+    if (_lockerId == null) {
+      debugPrint('Error: Cannot lock locker. No locker ID available.');
+      return false;
+    }
+
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$_lockerId/lock');
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('Locker locked successfully: $_lockerId');
+        debugPrint('Response: ${response.body}');
+        return true;
+      } else {
+        debugPrint('Failed to lock locker. Status: ${response.statusCode}');
+        debugPrint('Response: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error locking locker: $e');
       return false;
     }
   }

@@ -16,6 +16,11 @@ const parcelSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  locker_id: {
+    type: String,
+    required: true,
+    trim: true
+  },
   waybill_id: {
     type: String,
     required: true,

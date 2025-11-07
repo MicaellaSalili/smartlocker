@@ -106,4 +106,23 @@ class TFLiteProcessor {
       'lockerDetected': lockerDetected, // New field for locker frame detection
     };
   }
+
+  /// Generate a placeholder parcel (waybill id, details and embedding) for bypass/testing flows
+  static Future<Map<String, dynamic>> generatePlaceholderParcel() async {
+    // Reuse the simulated waybill id and embedding
+    _simulatedWaybillId = 'WB_PLACEHOLDER_${DateTime.now().millisecondsSinceEpoch}';
+
+    final waybillDetails = 'Placeholder waybill details - ID: $_simulatedWaybillId - (bypass)';
+
+    final embedding = List<double>.generate(
+      128,
+      (index) => (index * 0.01) % 1.0,
+    );
+
+    return {
+      'waybillId': _simulatedWaybillId,
+      'waybillDetails': waybillDetails,
+      'embedding': embedding,
+    };
+  }
 }

@@ -4,7 +4,9 @@ import '../services/transaction_manager.dart';
 import 'scan_screen.dart';
 
 class InputDetailsScreen extends StatefulWidget {
-  const InputDetailsScreen({super.key});
+  final String? lockerId;
+
+  const InputDetailsScreen({super.key, this.lockerId});
 
   @override
   State<InputDetailsScreen> createState() => _InputDetailsScreenState();
@@ -24,6 +26,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+  }
+
   void _handleProceed() {
     if (_formKey.currentState!.validate()) {
       final firstName = _firstNameController.text.trim();
@@ -41,7 +48,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const ScanScreen(),
+          builder: (context) => ScanScreen(lockerId: widget.lockerId),
         ),
       );
     }
@@ -81,6 +88,39 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 40),
+
+              // Locker scanned info (if provided)
+              if (widget.lockerId != null) ...[
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    border: Border.all(color: Colors.green, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.check_circle, size: 48, color: Colors.green),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Locker scanned',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.lockerId ?? '',
+                        style: TextStyle(color: Colors.green.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // Envelope Icon
               Container(

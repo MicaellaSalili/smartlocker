@@ -9,7 +9,9 @@ import '../services/transaction_manager.dart';
 import 'live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key});
+  final String? lockerId;
+  
+  const ScanScreen({super.key, this.lockerId});
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -84,6 +86,7 @@ class _ScanScreenState extends State<ScanScreen> {
       // 3. Call TransactionManager.logTransactionData
       if (mounted) {
         Provider.of<TransactionManager>(context, listen: false).logTransactionData(
+          lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
           waybillId: waybillId,
           waybillDetails: waybillDetails,
           embedding: embedding,
