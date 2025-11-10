@@ -570,28 +570,35 @@ app.delete('/api/parcel/:id', async (req, res) => {
   }
 });
 
-// MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smartlocker';
+// MongoDB connection using Atlas URI from .env
+const MONGODB_URI = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 3000;
 
-mongoose
-  .connect(MONGODB_URI)
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI not set in .env file!');
+  process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
   .then(() => {
-    console.log('✅ MongoDB connected');
+    console.log('✅ Connected to MongoDB Atlas');
     console.log(`   Database: ${MONGODB_URI.split('/').pop()}`);
-    
     app.listen(PORT, '0.0.0.0', () => {
       console.log('\n🚀 SERVER READY');
       console.log(`   Port:        ${PORT}`);
       console.log(`   Local:       http://localhost:${PORT}`);
-      console.log(`   Network:     http://192.168.1.42:${PORT}`);
+      // Optionally, dynamically show network IP
+      console.log(`   Network:     http://0.0.0.0:${PORT}`);
       console.log('\n   📱 Flutter App:    Ready to accept requests');
       console.log('   � QR Generator:   Waiting for connection...');
       console.log('   🔌 ESP32:          Offline (this is normal for now)\n');
     });
   })
   .catch((err) => {
-    console.error('\n❌ MongoDB connection failed:', err.message);
-    console.error('   Make sure MongoDB is running!\n');
+    console.error('\n❌ MongoDB Atlas connection failed:', err.message);
+    console.error('   Check your Atlas URI and credentials in .env!\n');
     process.exit(1);
   });
