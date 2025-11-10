@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "init-lockers": "node scripts/initLockers.js",
     "test": "echo \"No tests yet\""
   },
   "keywords": [],

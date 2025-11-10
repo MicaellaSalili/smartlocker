@@ -27,30 +27,36 @@ class MQTTService {
 
   connect() {
     try {
-      console.log(`Connecting to MQTT broker: ${this.brokerUrl}`);
       this.client = mqtt.connect(this.brokerUrl, this.options);
 
       this.client.on('connect', () => {
         this.isConnected = true;
-        console.log('✅ MQTT Client connected to broker');
+        this._errorLogged = false;
+        this._reconnectCount = 0;
+        console.log('✅ MQTT connected');
       });
 
       this.client.on('error', (error) => {
-        console.error('❌ MQTT Connection error:', error);
+        // Only log MQTT errors once to avoid spam
+        if (!this._errorLogged) {
+          console.log('⚠️  MQTT unavailable (ESP32 offline - this is normal)');
+          this._errorLogged = true;
+        }
         this.isConnected = false;
       });
 
       this.client.on('offline', () => {
-        console.log('⚠️  MQTT Client offline');
         this.isConnected = false;
       });
 
       this.client.on('reconnect', () => {
-        console.log('🔄 MQTT Client reconnecting...');
+        // Silent reconnection attempts
+        if (!this._reconnectCount) this._reconnectCount = 0;
+        this._reconnectCount++;
       });
 
     } catch (error) {
-      console.error('Failed to connect to MQTT broker:', error);
+      console.error('Failed to initialize MQTT:', error.message);
     }
   }
 
@@ -82,11 +88,8 @@ class MQTTService {
       this.client.publish(topic, message, { qos: 1, retain: false }, (error) => {
         if (error) {
           console.error(`❌ Failed to publish unlock command for ${lockerId}:`, error);
-        } else {
-          console.log(`✅ Unlock command sent to ${lockerId}`);
-          console.log(`   Topic: ${topic}`);
-          console.log(`   Payload:`, payload);
         }
+        // Success logging moved to server.js for cleaner output
       });
 
       return true;

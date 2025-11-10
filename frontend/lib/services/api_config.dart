@@ -11,9 +11,9 @@ class ApiConfig {
     }
     
     if (Platform.isAndroid) {
-      // Android emulator: Use special alias for host machine
-      // CHANGE THIS to your actual IP (e.g., 'http://192.168.1.5:$port') if using physical device
-      return 'http://10.0.2.2:$port';
+      // Android physical device: Using actual laptop Wi-Fi IP
+      // Use 'http://10.0.2.2:$port' for emulator
+      return 'http://192.168.1.42:$port';
     }
     
     if (Platform.isIOS) {
@@ -23,6 +23,6 @@ class ApiConfig {
     }
     
     // Desktop platforms (Windows/macOS/Linux)
-    return 'http://127.0.0.1:$port';
+    return 'http://26.159.131.21:$port';
   }
 }

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Locker LCD Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+        }
+        
+        /* LCD Screen Simulation */
+        .lcd-screen {
+            max-width: 600px;
+            margin: 30px auto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .lcd-display {
+            background: #0a0a0a;
+            padding: 30px;
+            border-radius: 10px;
+            border: 3px solid #333;
+            box-shadow: inset 0 0 20px rgba(0,255,0,0.1);
+        }
+        
+        h1 {
+            color: #00ff00;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 10px #00ff00;
+            margin: 0 0 20px 0;
+            font-size: 24px;
+        }
+        
+        .status {
+            color: #00ff00;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            margin: 15px 0;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        
+        .locker-info {
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .locker-id {
+            color: #00ff00;
+            font-size: 36px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 15px #00ff00;
+            letter-spacing: 3px;
+        }
+        
+        #qrcode {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+        }
+        
+        canvas {
+            border-radius: 5px;
+        }
+        
+        .timer {
+            color: #ffaa00;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            margin: 15px 0;
+            text-shadow: 0 0 5px #ffaa00;
+        }
+        
+        .instructions {
+            color: #00ff00;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 20px 0 10px 0;
+            opacity: 0.8;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        button {
+            background: #4285F4;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #357ae8;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .refresh-btn {
+            background: #34A853;
+        }
+        
+        .refresh-btn:hover {
+            background: #2d8f47;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4285F4;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- LCD Screen (Simulates Physical Locker Display) -->
+    <div class="lcd-screen">
+        <div class="lcd-display">
+            <h1>🔐 SMART LOCKER SYSTEM</h1>
+            
+            <div id="waitingScreen">
+                <div class="status">WAITING FOR ASSIGNMENT...</div>
+                <div class="instructions" style="margin-top: 30px;">
+                    Use control panel below to<br>
+                    fetch locker assignment
+                </div>
+            </div>
+            
+            <div id="qrScreen" class="hidden">
+                <div class="locker-info">
+                    <div style="color: #00ff00; font-size: 14px; margin-bottom: 10px;">ASSIGNED LOCKER</div>
+                    <div class="locker-id" id="lockerIdDisplay">---</div>
+                </div>
+                
+                <div class="status">SCAN QR CODE TO UNLOCK</div>
+                
+                <div id="qrcode"></div>
+                
+                <div class="timer" id="timer">Expires in: --:--</div>
+                
+                <div class="instructions">
+                    Point your phone camera at the QR code
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Panel (For Testing) -->
+    <div class="control-panel">
+        <h3 style="margin-top: 0; color: #333;">🎛️ LCD Control Panel (Testing)</h3>
+        
+        <div class="info-box">
+            <strong>Simulating Physical Locker LCD Screen</strong><br>
+            This represents the LCD display on the actual locker hardware.
+        </div>
+        
+        <div id="connectionStatus" class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
+            <strong>🔄 Connecting to backend...</strong>
+        </div>
+        
+        <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-radius: 5px; font-size: 14px;">
+            � <strong>How it works:</strong> When you assign a locker in the phone app, the QR code will appear automatically on the LCD screen above.
+        </div>
+        
+        <button onclick="resetLCD()" style="background: #dc3545; margin-top: 20px; width: 100%;">
+            Reset LCD Screen
+        </button>
+        
+        <div id="message" style="margin-top: 15px;"></div>
+    </div>
+
+    <script>
+        let countdownInterval;
+        let eventSource;
+        
+        // Connect to backend SSE stream for real-time QR updates
+        function connectToBackend() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource('http://192.168.1.42:3000/api/lcd/stream');
+            
+            eventSource.onopen = function() {
+                console.log('✅ Connected to backend LCD stream');
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<strong style="color: #28a745;">🟢 Connected - Waiting for locker assignment...</strong>';
+                document.getElementById('connectionStatus').style.background = '#d4edda';
+                document.getElementById('connectionStatus').style.borderLeftColor = '#28a745';
+            };
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'connected') {
+                    console.log('📺 LCD stream ready');
+                } else if (data.type === 'qr_update') {
+                    console.log('📡 Received QR update:', data);
+                    displayQROnLCD(data.qr_content, data.locker_id, data.expires_at);
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('❌ SSE connection error:', error);
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<strong style="color: #dc3545;">🔴 Backend not running! Start with: npm start</strong>';
+                document.getElementById('connectionStatus').style.background = '#f8d7da';
+                document.getElementById('connectionStatus').style.borderLeftColor = '#dc3545';
+                
+                // Auto-reconnect after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('connectionStatus').innerHTML = 
+                        '<strong style="color: #ffc107;">🔄 Retrying connection...</strong>';
+                    document.getElementById('connectionStatus').style.background = '#fff3cd';
+                    document.getElementById('connectionStatus').style.borderLeftColor = '#ffc107';
+                    connectToBackend();
+                }, 3000);
+            };
+        }
+        
+        // Connect on page load
+        connectToBackend();
+        
+        function displayQROnLCD(qrContent, lockerId, expiresAt) {
+            // Hide waiting screen, show QR screen
+            document.getElementById('waitingScreen').classList.add('hidden');
+            document.getElementById('qrScreen').classList.remove('hidden');
+            
+            // Display locker ID
+            document.getElementById('lockerIdDisplay').textContent = lockerId;
+            
+            // Clear previous QR code
+            const qrcodeDiv = document.getElementById('qrcode');
+            qrcodeDiv.innerHTML = '';
+            
+            // Generate QR code using QRCode.js (different API)
+            try {
+                new QRCode(qrcodeDiv, {
+                    text: qrContent,
+                    width: 350,
+                    height: 350,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                console.log('✅ QR code generated successfully');
+            } catch (error) {
+                console.error('❌ Error generating QR:', error);
+                qrcodeDiv.innerHTML = '<p style="color: red;">Error generating QR code</p>';
+                return;
+            }
+            
+            // Start countdown timer
+            startCountdown(expiresAt);
+        }
+        
+        function startCountdown(expiresAt) {
+            // Clear existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            const updateTimer = () => {
+                const now = Date.now();
+                const expireTime = new Date(expiresAt).getTime();
+                const timeLeft = Math.max(0, expireTime - now);
+                
+                if (timeLeft === 0) {
+                    clearInterval(countdownInterval);
+                    document.getElementById('timer').textContent = 'EXPIRED - Get new assignment';
+                    document.getElementById('timer').style.color = '#ff0000';
+                    return;
+                }
+                
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                
+                document.getElementById('timer').textContent = 
+                    `Expires in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            };
+            
+            updateTimer();
+            countdownInterval = setInterval(updateTimer, 1000);
+        }
+        
+        function resetLCD() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            document.getElementById('waitingScreen').classList.remove('hidden');
+            document.getElementById('qrScreen').classList.add('hidden');
+            document.getElementById('qrcode').innerHTML = '';
+            document.getElementById('message').innerHTML = '';
+            
+            console.log('🔄 LCD reset');
+        }
+    </script>
+</body>
+</html>

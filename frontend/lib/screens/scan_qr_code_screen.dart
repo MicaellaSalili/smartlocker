@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../services/api_config.dart';
+import 'scan_screen.dart';
 
-/// Scan QR Code screen that returns the parsed locker ID when a QR is detected.
-/// Expected QR format: starts with the locker id (e.g. "LOCKER123"), optionally followed
-/// by additional text. This screen extracts the leading token and returns it.
+/// Scan QR Code screen that validates token and locker ID.
+/// Expected QR format: LOCKER_ID:TOKEN_xxx:EXP_timestamp
 class ScanQrCodeScreen extends StatefulWidget {
-  const ScanQrCodeScreen({super.key});
+  final String? expectedLockerId;
+  final String? expectedToken;
+  
+  const ScanQrCodeScreen({
+    super.key,
+    this.expectedLockerId,
+    this.expectedToken,
+  });
 
   @override
   State<ScanQrCodeScreen> createState() => _ScanQrCodeScreenState();
@@ -18,12 +28,7 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
   @override
   void initState() {
     super.initState();
-    // TEMPORARY: Auto-return placeholder locker ID after a short delay
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        Navigator.of(context).pop('LOCKER_${DateTime.now().millisecondsSinceEpoch}');
-      }
-    });
+    // Remove auto-return placeholder - now we actually scan QR codes
   }
 
   @override
@@ -32,25 +37,122 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
     super.dispose();
   }
 
-  /// Parse the raw QR content to extract the locker id.
-  /// Strategy:
-  /// 1. Trim the raw string.
-  /// 2. Try to grab a leading token matching common id characters.
-  /// 3. Fallback: split on whitespace/parenthesis/newline and take first token.
-  String _parseLockerId(String raw) {
+  /// Parse QR content and validate token
+  /// Expected format: LOCKER_ID:TOKEN_xxx:EXP_timestamp
+  Future<Map<String, dynamic>> _parseAndValidateQR(String raw) async {
     final s = raw.trim();
+    
+    // Debug: Print what we received
+    debugPrint('🔍 Raw QR Content: "$s"');
+    debugPrint('🔍 Length: ${s.length}');
+    debugPrint('🔍 Characters: ${s.codeUnits}');
+    
+    // Split by colon
+    final parts = s.split(':');
+    debugPrint('🔍 Parts count: ${parts.length}');
+    debugPrint('🔍 Parts: $parts');
+    
+    if (parts.length < 3) {
+      return {
+        'valid': false, 
+        'error': 'Invalid QR format. Expected: LOCKER_ID:TOKEN_xxx:EXP_timestamp\nReceived: $s'
+      };
+    }
+    
+    final lockerId = parts[0].trim();
+    final tokenPart = parts[1].trim(); // Should be "TOKEN_xxx"
+    final expPart = parts[2].trim(); // Should be "EXP_timestamp"
+    
+    debugPrint('🔍 Locker ID: "$lockerId"');
+    debugPrint('🔍 Token Part: "$tokenPart"');
+    debugPrint('🔍 Exp Part: "$expPart"');
+    
+    // Extract token (remove "TOKEN_" prefix)
+    if (!tokenPart.startsWith('TOKEN_')) {
+      return {
+        'valid': false, 
+        'error': 'Invalid token format. Expected: TOKEN_xxx\nReceived: $tokenPart'
+      };
+    }
+    final token = tokenPart.substring(6);
+    
+    // Extract expiration (remove "EXP_" prefix)
+    if (!expPart.startsWith('EXP_')) {
+      return {
+        'valid': false, 
+        'error': 'Invalid expiration format. Expected: EXP_timestamp\nReceived: $expPart'
+      };
+    }
+    final expTimestamp = int.tryParse(expPart.substring(4));
+    if (expTimestamp == null) {
+      return {
+        'valid': false, 
+        'error': 'Invalid expiration timestamp: ${expPart.substring(4)}'
+      };
+    }
+    
+    debugPrint('🔍 Parsed Token: "$token"');
+    debugPrint('🔍 Parsed Timestamp: $expTimestamp');
+    debugPrint('🔍 Expected Locker: ${widget.expectedLockerId}');
+    debugPrint('🔍 Expected Token: ${widget.expectedToken}');
+    
+    // Check if token expired
+    final now = DateTime.now().millisecondsSinceEpoch;
+    debugPrint('🔍 Now: $now, Expires: $expTimestamp');
+    if (now > expTimestamp) {
+      return {'valid': false, 'error': 'QR code has expired'};
+    }
+    
+    // Validate locker ID matches expected (if provided)
+    if (widget.expectedLockerId != null && lockerId != widget.expectedLockerId) {
+      return {
+        'valid': false, 
+        'error': 'Locker ID mismatch\nExpected: ${widget.expectedLockerId}\nReceived: $lockerId'
+      };
+    }
+    
+    // Validate token matches expected (if provided)
+    if (widget.expectedToken != null && token != widget.expectedToken) {
+      return {
+        'valid': false, 
+        'error': 'Invalid token\nExpected: ${widget.expectedToken}\nReceived: $token'
+      };
+    }
+    
+    debugPrint('✅ QR validation passed!');
+    
+    return {
+      'valid': true,
+      'lockerId': lockerId,
+      'token': token,
+    };
+  }
 
-    // Try a conservative regex that matches a leading alphanumeric/underscore/hyphen token
-    final match = RegExp(r'^[A-Za-z0-9_\-]+').firstMatch(s);
-    if (match != null) return match.group(0)!;
+  /// Send unlock command with token to backend
+  Future<bool> _sendUnlockCommand(String lockerId, String token) async {
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$lockerId/unlock');
+      final response = await http.put(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'token': token}),
+      );
 
-    // Fallback: split by whitespace and punctuation often used after an ID
-    final parts = s.split(RegExp(r'[\s\n(),;:]+'));
-    return parts.isNotEmpty ? parts.first : s;
+      if (response.statusCode == 200) {
+        debugPrint('✅ Unlock command sent successfully');
+        return true;
+      } else {
+        final errorData = json.decode(response.body);
+        debugPrint('⚠️ Unlock failed: ${errorData['error']}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error sending unlock command: $e');
+      return false;
+    }
   }
 
   void _onDetect(BarcodeCapture capture) async {
-    // Prevent re-entrancy while handling a detection
     if (_isProcessing) return;
 
     final barcodes = capture.barcodes;
@@ -62,26 +164,117 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final lockerId = _parseLockerId(raw);
-
-      if (lockerId.isNotEmpty) {
-        // Stop scanner to avoid duplicate detections
+      // Parse and validate QR code
+      final validation = await _parseAndValidateQR(raw);
+      
+      if (validation['valid'] == true) {
+        final lockerId = validation['lockerId'];
+        final token = validation['token'];
+        
+        // Stop scanner
         try {
           await _cameraController.stop();
-        } catch (_) {
-          // ignore controller errors
+        } catch (_) {}
+        
+        // Send unlock command
+        final unlocked = await _sendUnlockCommand(lockerId, token);
+        
+        if (unlocked && mounted) {
+          // Show success and navigate to scan screen
+          await _showSuccessDialog(lockerId);
+        } else if (mounted) {
+          // Show error and allow retry
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to unlock locker. Please try again.')),
+          );
+          setState(() => _isProcessing = false);
         }
-
-        // Return the parsed locker id to the caller
-        if (mounted) Navigator.of(context).pop(lockerId);
-        return;
+      } else {
+        // Show validation error
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(validation['error'] ?? 'Invalid QR code')),
+          );
+          setState(() => _isProcessing = false);
+        }
       }
     } catch (e) {
-      debugPrint('Error parsing QR: $e');
+      debugPrint('Error processing QR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+        setState(() => _isProcessing = false);
+      }
     }
+  }
 
-    // allow scanning again if parsing failed
-    if (mounted) setState(() => _isProcessing = false);
+  Future<void> _showSuccessDialog(String lockerId) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                border: Border.all(color: Colors.green, width: 2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.check_circle, size: 64, color: Colors.green),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Locker Unlocked Successfully',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Locker ID: $lockerId',
+                    style: TextStyle(color: Colors.green.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Door is now unlocked. Place package inside.',
+                    style: TextStyle(color: Colors.green.shade600, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ScanScreen(lockerId: lockerId),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4285F4),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Text('Proceed to Package Scanning'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

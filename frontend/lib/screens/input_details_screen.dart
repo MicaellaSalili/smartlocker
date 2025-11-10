@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../services/transaction_manager.dart';
-import 'scan_screen.dart';
+import '../services/api_config.dart';
+import 'scan_qr_code_screen.dart';
 
 class InputDetailsScreen extends StatefulWidget {
   final String? lockerId;
@@ -17,6 +20,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneNumberController = TextEditingController();
+  bool _isGettingLocker = false;
 
   @override
   void dispose() {
@@ -31,7 +35,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
     super.didChangeDependencies();
   }
 
-  void _handleProceed() {
+  void _handleProceed() async {
     if (_formKey.currentState!.validate()) {
       final firstName = _firstNameController.text.trim();
       final lastName = _lastNameController.text.trim();
@@ -44,11 +48,215 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
         phoneNumber: phoneNumber,
       );
 
-      // Navigate to ScanScreen
+      // Get available locker automatically from backend
+      setState(() {
+        _isGettingLocker = true;
+      });
+
+      try {
+        final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/available');
+        final response = await http.get(url);
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final String lockerId = data['locker_id'];
+          final String token = data['token'];
+          final int availableCount = data['available_count'];
+          
+          debugPrint('✅ Assigned locker: $lockerId (Available: $availableCount)');
+          
+          if (mounted) {
+            setState(() {
+              _isGettingLocker = false;
+            });
+            
+            // Show assigned locker dialog
+            await _showLockerAssignedDialog(lockerId, availableCount, token);
+          }
+        } else if (response.statusCode == 503) {
+          // No available lockers
+          if (mounted) {
+            setState(() {
+              _isGettingLocker = false;
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('All lockers are currently occupied. Please try again later.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _isGettingLocker = false;
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to get locker: ${response.statusCode}')),
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ Error getting available locker: $e');
+        if (mounted) {
+          setState(() {
+            _isGettingLocker = false;
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showLockerAssignedDialog(String lockerId, int availableCount, String token) async {
+    // Show simple dialog and proceed to QR scanner
+    // The LCD screen (HTML) will display the QR code
+    
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                border: Border.all(color: Colors.blue, width: 2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.check_circle, size: 64, color: Colors.green),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Locker Assigned!',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    lockerId,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2C3E50),
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Available lockers: $availableCount',
+                    style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Instructions
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200, width: 2),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.qr_code_2, size: 48, color: Colors.orange.shade700),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Next Step:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'The QR code is now displayed on the locker\'s LCD screen',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.orange.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer, size: 16, color: Colors.orange.shade700),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Valid for 5 minutes',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Proceed to scan
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan QR from LCD Screen'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4285F4),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                minimumSize: const Size(double.infinity, 54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    // If user chose to proceed, navigate to QR scanner
+    if (proceed == true && mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ScanScreen(lockerId: widget.lockerId),
+          builder: (_) => ScanQrCodeScreen(
+            expectedLockerId: lockerId,
+            expectedToken: token,
+          ),
         ),
       );
     }
@@ -357,7 +565,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
 
                       // Proceed Button
                       ElevatedButton(
-                        onPressed: _handleProceed,
+                        onPressed: _isGettingLocker ? null : _handleProceed,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4285F4),
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -367,14 +575,23 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                           ),
                           elevation: 2,
                         ),
-                        child: const Text(
-                          'Proceed to Package Scanning',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isGettingLocker
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Get Available Locker',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                       const SizedBox(height: 12),
 

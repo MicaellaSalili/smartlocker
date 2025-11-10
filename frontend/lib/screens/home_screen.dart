@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'input_details_screen.dart';
-import 'scan_qr_code_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'alerts_screen.dart';
 import '../models/user_data.dart';
-import '../services/api_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -236,93 +233,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onScanPressed() async {
-    // Navigate to QR scanner screen
-    final result = await Navigator.push(
+    // NEW FLOW: Navigate directly to Input Details Screen first
+    // After details are entered, user proceeds to scan QR code
+    Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ScanQrCodeScreen()),
+      MaterialPageRoute(builder: (_) => const InputDetailsScreen(lockerId: null)),
     );
-
-    // If a locker ID was scanned, send unlock command and show success dialog
-    if (result != null && result is String) {
-      final lockerId = result;
-      
-      // 🔓 Send unlock command to ESP32 via backend
-      await _sendUnlockCommand(lockerId);
-      
-      // Show success dialog then proceed to input details
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  border: Border.all(color: Colors.green, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.check_circle, size: 64, color: Colors.green),
-                    const SizedBox(height: 12),
-                    const Text('Locker Unlocked Successfully', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)),
-                    const SizedBox(height: 12),
-                    Text('Locker ID: $lockerId', style: TextStyle(color: Colors.green.shade700)),
-                    const SizedBox(height: 8),
-                    Text('Door will unlock for 5 seconds', style: TextStyle(color: Colors.green.shade600, fontSize: 12)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => InputDetailsScreen(lockerId: lockerId)),
-                  );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4285F4)),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-                  child: Text('Proceed to Input Recipient Details'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-  }
-
-  // Send unlock command to backend after QR scan
-  Future<void> _sendUnlockCommand(String lockerId) async {
-    try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$lockerId/unlock');
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        debugPrint('✅ Unlock command sent successfully to $lockerId');
-      } else {
-        debugPrint('⚠️ Failed to send unlock command. Status: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('❌ Error sending unlock command: $e');
-    }
   }
 
   Widget _buildNavItem(IconData icon, String label, int index) {
