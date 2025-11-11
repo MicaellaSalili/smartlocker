@@ -1,8 +1,13 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
 const Locker = require('../src/models/Locker');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smartlocker';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI not set in .env file!');
+  process.exit(1);
+}
 
 // Initialize 5 lockers (you mentioned you only have 1 physical unit, but we'll create 5 in DB for scalability)
 const lockerIds = ['LOCKER_001', 'LOCKER_002', 'LOCKER_003', 'LOCKER_004', 'LOCKER_005'];
@@ -12,6 +17,18 @@ async function initializeLockers() {
     console.log('Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
     console.log('✅ Connected to MongoDB');
+    // Debug: Print database name and collections
+    const dbNameMatch = MONGODB_URI.match(/mongodb(?:\+srv)?:\/\/[^\/]+\/(\w+)/);
+    const dbName = dbNameMatch ? dbNameMatch[1] : '(default or test)';
+    console.log(`   Database (from URI): ${dbName}`);
+    await mongoose.connection.db.listCollections().toArray(function(err, collections) {
+      if (err) {
+        console.log('   Error listing collections:', err.message);
+      } else {
+        console.log('   Collections:');
+        collections.forEach(col => console.log(`     - ${col.name}`));
+      }
+    });
 
     for (const lockerId of lockerIds) {
       // Check if locker already exists
