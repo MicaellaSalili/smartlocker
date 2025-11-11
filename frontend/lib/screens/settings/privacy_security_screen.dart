@@ -19,15 +19,48 @@ class PrivacySecurityScreen extends StatelessWidget {
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Text(
-            'Privacy & Security settings coming soon',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Center(
+                child: Text(
+                  'Privacy and Security',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4285F4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'All user data is protected with industry-standard encryption protocols, both during transmission and while stored on our servers.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'We enforce strict access controls. Locker and parcel information is accessible only to verified couriers and designated recipients for the express purpose of service fulfillment.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Your personal information is confidential. We do not sell, rent, or trade your data with any third parties for marketing or advertising purposes.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'All system activities, including transactions and access logs, are actively monitored to detect and prevent unauthorized access and ensure platform integrity.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'For any inquiries regarding your data privacy or to exercise your data rights, please contact our support team via the "Help & Support" center.',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
           ),
         ),
       ),
