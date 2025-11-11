@@ -146,13 +146,17 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
         debugPrint('✅ Unlock command sent successfully');
         return true;
       } else {
-        final errorData = json.decode(response.body);
-        debugPrint('⚠️ Unlock failed: ${errorData['error']}');
-        return false;
+        String errorMsg = 'Failed to unlock locker.';
+        try {
+          final errorData = json.decode(response.body);
+          if (errorData['error'] != null) errorMsg = errorData['error'];
+        } catch (_) {}
+        debugPrint('⚠️ Unlock failed: $errorMsg');
+        throw errorMsg;
       }
     } catch (e) {
       debugPrint('❌ Error sending unlock command: $e');
-      return false;
+      throw e.toString();
     }
   }
 
@@ -181,20 +185,13 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
         } catch (_) {}
 
         // Send unlock command
-        final unlocked = await _sendUnlockCommand(lockerId, token);
+        await _sendUnlockCommand(lockerId, token);
 
-        if (unlocked && mounted) {
+        if (mounted) {
           // Show success and navigate to scan screen
           await _showSuccessDialog(lockerId);
-        } else if (mounted) {
-          // Show error and allow retry
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to unlock locker. Please try again.'),
-            ),
-          );
-          setState(() => _isProcessing = false);
         }
+        setState(() => _isProcessing = false);
       } else {
         // Show validation error
         if (mounted) {
@@ -209,7 +206,7 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
         setState(() => _isProcessing = false);
       }
     }

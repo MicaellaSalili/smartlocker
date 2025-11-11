@@ -66,4 +66,13 @@ lockerSchema.methods.clearExpiredToken = function() {
   return false;
 };
 
+// Method to reset locker to AVAILABLE
+lockerSchema.methods.setAvailable = function() {
+  this.status = 'AVAILABLE';
+  this.current_token = null;
+  this.token_expires_at = null;
+  this.occupied_by_parcel = null;
+  return this.save();
+};
+
 module.exports = mongoose.model('Locker', lockerSchema);
