@@ -10,7 +10,7 @@ import 'live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   final String? lockerId;
-  
+
   const ScanScreen({super.key, this.lockerId});
 
   @override
@@ -61,7 +61,9 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Future<void> _captureAndLog() async {
-    if (_isProcessing || _cameraController == null || !_cameraController!.value.isInitialized) {
+    if (_isProcessing ||
+        _cameraController == null ||
+        !_cameraController!.value.isInitialized) {
       return;
     }
 
@@ -85,12 +87,30 @@ class _ScanScreenState extends State<ScanScreen> {
 
       // 3. Call TransactionManager.logTransactionData
       if (mounted) {
-        Provider.of<TransactionManager>(context, listen: false).logTransactionData(
+        final transactionManager = Provider.of<TransactionManager>(
+          context,
+          listen: false,
+        );
+
+        // Validate data completeness before logging
+        if (transactionManager.auditData == null) {
+          throw Exception(
+            'Missing recipient information. Please go back and enter details.',
+          );
+        }
+
+        debugPrint('✅ All data validated. Logging transaction...');
+
+        await transactionManager.logTransactionData(
           lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
           waybillId: waybillId,
           waybillDetails: waybillDetails,
           embedding: embedding,
         );
+
+        debugPrint('📊 Final Transaction Summary:');
+        final summary = transactionManager.getTransactionSummary();
+        summary.forEach((key, value) => debugPrint('  $key: $value'));
 
         // 4. Navigate to success screen (using dialog then LiveScreen)
         _showScanSuccessDialog();
@@ -98,9 +118,9 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (e) {
       debugPrint('Error capturing and logging: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -196,7 +216,7 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
             ),
             const SizedBox(height: 40),
-            
+
             // Scanning frame
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -210,28 +230,23 @@ class _ScanScreenState extends State<ScanScreen> {
                   borderRadius: BorderRadius.circular(10),
                   child: _isCameraInitialized && _cameraController != null
                       ? CameraPreview(_cameraController!)
-                      : const Center(
-                          child: CircularProgressIndicator(),
-                        ),
+                      : const Center(child: CircularProgressIndicator()),
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Instruction text
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 'Position the entire package, waybill, and QR/barcode. Ensure the view is clear.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ),
             const Spacer(),
-            
+
             // Buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -301,7 +316,9 @@ class _ScanScreenState extends State<ScanScreen> {
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -316,7 +333,8 @@ class _ScanScreenState extends State<ScanScreen> {
                       borderRadius: BorderRadius.circular(12),
                       child: Image.asset(
                         'assets/guide.png',
-                        fit: BoxFit.contain, // show entire image without cropping
+                        fit: BoxFit
+                            .contain, // show entire image without cropping
                       ),
                     ),
                   ),
@@ -340,7 +358,9 @@ class _ScanScreenState extends State<ScanScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4285F4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => Navigator.of(ctx).pop(),
@@ -349,7 +369,9 @@ class _ScanScreenState extends State<ScanScreen> {
                 const SizedBox(height: 8),
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {

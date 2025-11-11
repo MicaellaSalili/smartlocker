@@ -16,28 +16,46 @@ class _AlertsScreenState extends State<AlertsScreen> {
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Kaiwen Chen',
+      'phone': '09123456789',
       'locker': 'Locker: Smacker 222',
       'status': 'Failed',
       'color': Colors.red,
       'timestamp': DateTime(2025, 11, 1, 9, 45),
+      'waybill_id': 'WB001',
+      'waybill_details': 'Package from Amazon',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Failed',
       'isUrgent': true,
     },
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Ashanti Villadiego',
+      'phone': '09987654321',
       'locker': 'Locker: Smacker 222',
       'status': 'Delivered',
       'color': Colors.blue,
       'timestamp': DateTime(2025, 10, 27, 10, 30),
+      'waybill_id': 'WB002',
+      'waybill_details': 'Package from Shopee',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Verified',
       'isUrgent': false,
     },
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Kimberly Isip',
+      'phone': '09555123456',
       'locker': 'Locker: Smacker 222',
       'status': 'Claimed',
       'color': Colors.green,
       'timestamp': DateTime(2025, 10, 28, 14, 15),
+      'waybill_id': 'WB003',
+      'waybill_details': 'Package from Lazada',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Verified',
       'isUrgent': false,
     },
   ];
@@ -77,34 +95,27 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Filter tabs
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Expanded(
-                  child: _buildFilterTab('Urgent'),
-                ),
+                Expanded(child: _buildFilterTab('Urgent')),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _buildFilterTab('All notifications'),
-                ),
+                Expanded(child: _buildFilterTab('All notifications')),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Alerts List
           Expanded(
             child: filteredAlerts.isEmpty
                 ? Center(
                     child: Text(
                       'No ${selectedFilter.toLowerCase()}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                      ),
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
                     ),
                   )
                 : ListView.builder(
@@ -206,7 +217,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: alert['color'],
                   borderRadius: BorderRadius.circular(12),
@@ -230,9 +244,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ViewTransactionScreen(
-                      transaction: alert,
-                    ),
+                    builder: (context) =>
+                        ViewTransactionScreen(transaction: alert),
                   ),
                 );
               },

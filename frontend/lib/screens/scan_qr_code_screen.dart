@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../services/api_config.dart';
+import '../services/transaction_manager.dart';
 import 'scan_screen.dart';
 
 /// Scan QR Code screen that validates token and locker ID.
@@ -10,7 +12,7 @@ import 'scan_screen.dart';
 class ScanQrCodeScreen extends StatefulWidget {
   final String? expectedLockerId;
   final String? expectedToken;
-  
+
   const ScanQrCodeScreen({
     super.key,
     this.expectedLockerId,
@@ -41,91 +43,93 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
   /// Expected format: LOCKER_ID:TOKEN_xxx:EXP_timestamp
   Future<Map<String, dynamic>> _parseAndValidateQR(String raw) async {
     final s = raw.trim();
-    
+
     // Debug: Print what we received
     debugPrint('🔍 Raw QR Content: "$s"');
     debugPrint('🔍 Length: ${s.length}');
     debugPrint('🔍 Characters: ${s.codeUnits}');
-    
+
     // Split by colon
     final parts = s.split(':');
     debugPrint('🔍 Parts count: ${parts.length}');
     debugPrint('🔍 Parts: $parts');
-    
+
     if (parts.length < 3) {
       return {
-        'valid': false, 
-        'error': 'Invalid QR format. Expected: LOCKER_ID:TOKEN_xxx:EXP_timestamp\nReceived: $s'
+        'valid': false,
+        'error':
+            'Invalid QR format. Expected: LOCKER_ID:TOKEN_xxx:EXP_timestamp\nReceived: $s',
       };
     }
-    
+
     final lockerId = parts[0].trim();
     final tokenPart = parts[1].trim(); // Should be "TOKEN_xxx"
     final expPart = parts[2].trim(); // Should be "EXP_timestamp"
-    
+
     debugPrint('🔍 Locker ID: "$lockerId"');
     debugPrint('🔍 Token Part: "$tokenPart"');
     debugPrint('🔍 Exp Part: "$expPart"');
-    
+
     // Extract token (remove "TOKEN_" prefix)
     if (!tokenPart.startsWith('TOKEN_')) {
       return {
-        'valid': false, 
-        'error': 'Invalid token format. Expected: TOKEN_xxx\nReceived: $tokenPart'
+        'valid': false,
+        'error':
+            'Invalid token format. Expected: TOKEN_xxx\nReceived: $tokenPart',
       };
     }
     final token = tokenPart.substring(6);
-    
+
     // Extract expiration (remove "EXP_" prefix)
     if (!expPart.startsWith('EXP_')) {
       return {
-        'valid': false, 
-        'error': 'Invalid expiration format. Expected: EXP_timestamp\nReceived: $expPart'
+        'valid': false,
+        'error':
+            'Invalid expiration format. Expected: EXP_timestamp\nReceived: $expPart',
       };
     }
     final expTimestamp = int.tryParse(expPart.substring(4));
     if (expTimestamp == null) {
       return {
-        'valid': false, 
-        'error': 'Invalid expiration timestamp: ${expPart.substring(4)}'
+        'valid': false,
+        'error': 'Invalid expiration timestamp: ${expPart.substring(4)}',
       };
     }
-    
+
     debugPrint('🔍 Parsed Token: "$token"');
     debugPrint('🔍 Parsed Timestamp: $expTimestamp');
     debugPrint('🔍 Expected Locker: ${widget.expectedLockerId}');
     debugPrint('🔍 Expected Token: ${widget.expectedToken}');
-    
+
     // Check if token expired
     final now = DateTime.now().millisecondsSinceEpoch;
     debugPrint('🔍 Now: $now, Expires: $expTimestamp');
     if (now > expTimestamp) {
       return {'valid': false, 'error': 'QR code has expired'};
     }
-    
+
     // Validate locker ID matches expected (if provided)
-    if (widget.expectedLockerId != null && lockerId != widget.expectedLockerId) {
+    if (widget.expectedLockerId != null &&
+        lockerId != widget.expectedLockerId) {
       return {
-        'valid': false, 
-        'error': 'Locker ID mismatch\nExpected: ${widget.expectedLockerId}\nReceived: $lockerId'
+        'valid': false,
+        'error':
+            'Locker ID mismatch\nExpected: ${widget.expectedLockerId}\nReceived: $lockerId',
       };
     }
-    
+
     // Validate token matches expected (if provided)
     if (widget.expectedToken != null && token != widget.expectedToken) {
       return {
-        'valid': false, 
-        'error': 'Invalid token\nExpected: ${widget.expectedToken}\nReceived: $token'
+        'valid': false,
+        'error':
+            'Invalid token\nExpected: ${widget.expectedToken}\nReceived: $token',
       };
     }
-    
+
     debugPrint('✅ QR validation passed!');
-    
-    return {
-      'valid': true,
-      'lockerId': lockerId,
-      'token': token,
-    };
+
+    return {'valid': true, 'lockerId': lockerId, 'token': token};
   }
 
   /// Send unlock command with token to backend
@@ -166,26 +170,28 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
     try {
       // Parse and validate QR code
       final validation = await _parseAndValidateQR(raw);
-      
+
       if (validation['valid'] == true) {
         final lockerId = validation['lockerId'];
         final token = validation['token'];
-        
+
         // Stop scanner
         try {
           await _cameraController.stop();
         } catch (_) {}
-        
+
         // Send unlock command
         final unlocked = await _sendUnlockCommand(lockerId, token);
-        
+
         if (unlocked && mounted) {
           // Show success and navigate to scan screen
           await _showSuccessDialog(lockerId);
         } else if (mounted) {
           // Show error and allow retry
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to unlock locker. Please try again.')),
+            const SnackBar(
+              content: Text('Failed to unlock locker. Please try again.'),
+            ),
           );
           setState(() => _isProcessing = false);
         }
@@ -201,9 +207,9 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
     } catch (e) {
       debugPrint('Error processing QR: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
         setState(() => _isProcessing = false);
       }
     }
@@ -247,7 +253,10 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Door is now unlocked. Place package inside.',
-                    style: TextStyle(color: Colors.green.shade600, fontSize: 12),
+                    style: TextStyle(
+                      color: Colors.green.shade600,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -256,6 +265,15 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
+
+                // Store locker ID in TransactionManager for later use
+                final transactionManager = Provider.of<TransactionManager>(
+                  context,
+                  listen: false,
+                );
+                transactionManager.setLockerId(lockerId);
+                debugPrint('🔒 Stored locker ID: $lockerId');
+
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
@@ -282,7 +300,10 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Scan QR Code', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Scan QR Code',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF5B9BFF),
         elevation: 0,
         centerTitle: true,
@@ -331,9 +352,7 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-              ),
+              decoration: const BoxDecoration(color: Colors.white),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -349,7 +368,7 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Start Scanning button
                   SizedBox(
                     width: double.infinity,
@@ -379,7 +398,7 @@ class _ScanQrCodeScreenState extends State<ScanQrCodeScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // Cancel button
                   SizedBox(
                     width: double.infinity,

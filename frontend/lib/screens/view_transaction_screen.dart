@@ -6,14 +6,26 @@ class ViewTransactionScreen extends StatelessWidget {
 
   const ViewTransactionScreen({super.key, required this.transaction});
 
-  String _formatTimestamp(DateTime? timestamp) {
+  String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return '2025-10-27 10:30:00';
-    String year = timestamp.year.toString();
-    String month = timestamp.month.toString().padLeft(2, '0');
-    String day = timestamp.day.toString().padLeft(2, '0');
-    String hour = timestamp.hour.toString().padLeft(2, '0');
-    String minute = timestamp.minute.toString().padLeft(2, '0');
-    String second = timestamp.second.toString().padLeft(2, '0');
+
+    DateTime dateTime;
+    if (timestamp is DateTime) {
+      dateTime = timestamp;
+    } else if (timestamp is int) {
+      dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } else if (timestamp is String) {
+      dateTime = DateTime.tryParse(timestamp) ?? DateTime.now();
+    } else {
+      return '2025-10-27 10:30:00';
+    }
+
+    String year = dateTime.year.toString();
+    String month = dateTime.month.toString().padLeft(2, '0');
+    String day = dateTime.day.toString().padLeft(2, '0');
+    String hour = dateTime.hour.toString().padLeft(2, '0');
+    String minute = dateTime.minute.toString().padLeft(2, '0');
+    String second = dateTime.second.toString().padLeft(2, '0');
     return '$year-$month-$day $hour:$minute:$second';
   }
 
@@ -95,19 +107,34 @@ class ViewTransactionScreen extends StatelessWidget {
                 children: [
                   // Transaction and Locker Info
                   _buildInfoSection('TRANSACTION AND LOCKER INFO', [
-                    'Transaction ID: 000000',
-                    'Locker ID: 222',
-                    'Compartment ID: 222',
-                    'Courier ID: 222',
+                    'Transaction ID: ${transaction['id'] ?? 'N/A'}',
+                    'Locker ID: ${transaction['locker'] ?? 'N/A'}',
+                    'Status: ${transaction['status'] ?? 'N/A'}',
                     'TIMESTAMP: ${_formatTimestamp(transaction['timestamp'])}',
                   ]),
                   const SizedBox(height: 16),
 
-                  // Recipient and Parcel Info
-                  _buildInfoSection('RECEIPIENT AND PARCEL INFO', [
-                    'Recipient: Ashanti Villadiego',
-                    'Contact Number: 09513316622',
-                    'Parcel ID: *********',
+                  // Recipient and Parcel Info (from Step 1)
+                  _buildInfoSection('RECIPIENT INFO (Step 1: Input Details)', [
+                    'Recipient: ${transaction['recipient'] ?? 'N/A'}',
+                    'Contact Number: ${transaction['phone'] ?? 'N/A'}',
+                    'Entry Method: Manual Input by Courier',
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // QR Code and Locker Assignment (from Step 2)
+                  _buildInfoSection('LOCKER ASSIGNMENT (Step 2: QR Scan)', [
+                    'QR Code Scanned: ${transaction['qr_scanned'] ?? 'Yes'}',
+                    'Locker Unlocked: ${transaction['locker'] ?? 'N/A'}',
+                    'Access Method: Token Validation',
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Package Scan Info (from Step 3)
+                  _buildInfoSection('PACKAGE SCAN (Step 3: Waybill Scan)', [
+                    'Waybill ID: ${transaction['waybill_id'] ?? 'N/A'}',
+                    'Package Details: ${transaction['package_details'] ?? 'Scanned and logged'}',
+                    'Image Embedding: Generated for verification',
                   ]),
                   const SizedBox(height: 8),
 
@@ -116,28 +143,34 @@ class ViewTransactionScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(left: 8, top: 8, bottom: 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Other Information from the Waybill',
+                      children: [
+                        const Text(
+                          'Additional Waybill Information',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
-                          'Waybill Info 1',
-                          style: TextStyle(fontSize: 11, color: Colors.black54),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Waybill Info 2',
-                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                          transaction['waybill_details'] ??
+                              'Waybill information extracted from scan',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black54,
+                          ),
                         ),
                       ],
                     ),
                   ),
+
+                  // Live Verification (from Step 4)
+                  _buildInfoSection('LIVE VERIFICATION (Step 4: Final Check)', [
+                    'Live Scan: Completed',
+                    'Package Match: ${transaction['verification_status'] ?? 'Verified'}',
+                    'Door Status: Locked after verification',
+                  ]),
 
                   // Divider
                   const Divider(
@@ -165,16 +198,29 @@ class ViewTransactionScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Column(
                       children: [
-                        _buildTimelineRow('Parcel Waybill Scan:', '10:30:00'),
-                        const SizedBox(height: 6),
                         _buildTimelineRow(
-                          'Live Parcel-Delivery Detection:',
-                          '10:31:00',
+                          'Step 1 - Recipient Details Input:',
+                          '${_extractTime(1)}',
                         ),
                         const SizedBox(height: 6),
                         _buildTimelineRow(
-                          'Successful Delivery (Waiting for Pickup):',
-                          '10:32:00',
+                          'Step 2 - QR Code Scan & Door Unlock:',
+                          '${_extractTime(2)}',
+                        ),
+                        const SizedBox(height: 6),
+                        _buildTimelineRow(
+                          'Step 3 - Package Waybill Scan:',
+                          '${_extractTime(3)}',
+                        ),
+                        const SizedBox(height: 6),
+                        _buildTimelineRow(
+                          'Step 4 - Live Verification & Lock:',
+                          '${_extractTime(4)}',
+                        ),
+                        const SizedBox(height: 6),
+                        _buildTimelineRow(
+                          'Transaction Complete:',
+                          _formatTime(transaction['timestamp']),
                         ),
                       ],
                     ),
@@ -353,5 +399,35 @@ class ViewTransactionScreen extends StatelessWidget {
         Text(time, style: const TextStyle(fontSize: 11, color: Colors.black87)),
       ],
     );
+  }
+
+  String _extractTime(int step) {
+    // Extract time based on step number from transaction data
+    // For now, return placeholder times based on current time
+    final now = DateTime.now();
+    final baseTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      10,
+      30 + step - 1,
+      0,
+    );
+    return _formatTime(baseTime.millisecondsSinceEpoch);
+  }
+
+  String _formatTime(dynamic timestamp) {
+    if (timestamp == null) return 'Not available';
+
+    DateTime dateTime;
+    if (timestamp is int) {
+      dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } else if (timestamp is String) {
+      dateTime = DateTime.tryParse(timestamp) ?? DateTime.now();
+    } else {
+      return 'Invalid time';
+    }
+
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
   }
 }

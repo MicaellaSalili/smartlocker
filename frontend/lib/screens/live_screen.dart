@@ -28,12 +28,12 @@ class _LiveScreenState extends State<LiveScreen> {
   String? _referenceWaybillDetails;
   int _consecutiveSuccessFrames = 0;
   bool _isProcessingFrame = false;
-  
+
   // New state variables for countdown and verification control
   Timer? _closeDoorTimer;
   int _countdown = 3;
   bool _isVerificationStarted = false;
-  
+
   static const int requiredConsecutiveFrames = 5;
   static const double similarityThreshold = 0.85;
   static const double positionConfidenceThreshold = 0.80;
@@ -76,14 +76,17 @@ class _LiveScreenState extends State<LiveScreen> {
   Future<void> _fetchReferenceData() async {
     try {
       // Call TransactionManager to fetch reference data
-      final transactionManager = Provider.of<TransactionManager>(context, listen: false);
+      final transactionManager = Provider.of<TransactionManager>(
+        context,
+        listen: false,
+      );
       final hasData = await transactionManager.fetchReferenceData();
-      
+
       // Get the stored data from transaction manager
       _referenceEmbedding = transactionManager.embedding;
       _referenceWaybillId = transactionManager.waybillId;
       _referenceWaybillDetails = transactionManager.waybillDetails;
-      
+
       if (hasData && _referenceEmbedding != null) {
         setState(() {
           _verificationStatus = 'Reference data loaded. Ready to verify.';
@@ -92,7 +95,8 @@ class _LiveScreenState extends State<LiveScreen> {
         _startLiveVerification();
       } else {
         setState(() {
-          _verificationStatus = 'No reference data found. Please scan package first.';
+          _verificationStatus =
+              'No reference data found. Please scan package first.';
         });
       }
     } catch (e) {
@@ -104,7 +108,9 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   void _startLiveVerification() {
-    if (_controller == null || !_controller!.value.isInitialized || _isVerifying) {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isVerifying) {
       return;
     }
 
@@ -131,58 +137,81 @@ class _LiveScreenState extends State<LiveScreen> {
     try {
       // a) Call TFLiteProcessor.runLiveVerification
       final liveData = await TFLiteProcessor.runLiveVerification(frame);
-      
-      final List<double> liveEmbedding = List<double>.from(liveData['liveEmbedding']);
+
+      final List<double> liveEmbedding = List<double>.from(
+        liveData['liveEmbedding'],
+      );
       final String liveWaybillDetails = liveData['liveWaybillDetails'];
       final List<dynamic> boundingBoxes = liveData['boundingBoxes'];
       final bool lockerDetected = liveData['lockerDetected'] as bool;
-      
+
       // b) Calculate Cosine Similarity between live and reference embeddings
-      final similarity = _calculateCosineSimilarity(liveEmbedding, _referenceEmbedding!);
-      
+      final similarity = _calculateCosineSimilarity(
+        liveEmbedding,
+        _referenceEmbedding!,
+      );
+
       // c) Full Match Check - ALL FIVE criteria must be true
       final bool vectorMatch = similarity >= similarityThreshold;
-      final bool textMatch = _checkTextMatch(liveWaybillDetails, _referenceWaybillDetails ?? '');
-      final bool idMatch = _checkIdMatch(liveWaybillDetails, _referenceWaybillId ?? '');
+      final bool textMatch = _checkTextMatch(
+        liveWaybillDetails,
+        _referenceWaybillDetails ?? '',
+      );
+      final bool idMatch = _checkIdMatch(
+        liveWaybillDetails,
+        _referenceWaybillId ?? '',
+      );
       final bool positionCheck = _checkPositionQuality(boundingBoxes);
       final bool lockerFrameCheck = lockerDetected;
-      
-      debugPrint('Verification scores - Similarity: ${similarity.toStringAsFixed(3)}, '
-          'Vector: $vectorMatch, Text: $textMatch, ID: $idMatch, Position: $positionCheck, Locker: $lockerFrameCheck');
-      
+
+      debugPrint(
+        'Verification scores - Similarity: ${similarity.toStringAsFixed(3)}, '
+        'Vector: $vectorMatch, Text: $textMatch, ID: $idMatch, Position: $positionCheck, Locker: $lockerFrameCheck',
+      );
+
       // Check if all 5 conditions are met
-      final bool allChecksPassed = vectorMatch && textMatch && idMatch && positionCheck && lockerFrameCheck;
-      
+      final bool allChecksPassed =
+          vectorMatch &&
+          textMatch &&
+          idMatch &&
+          positionCheck &&
+          lockerFrameCheck;
+
       // Handle verification during countdown - detect mismatch
       if (_isVerificationStarted && !allChecksPassed) {
         // Mismatch detected during countdown - parcel was removed
-        debugPrint('Mismatch detected during countdown! Resetting transaction.');
+        debugPrint(
+          'Mismatch detected during countdown! Resetting transaction.',
+        );
         await _resetTransaction();
         return;
       }
-      
+
       // Normal verification flow
       if (allChecksPassed) {
         _consecutiveSuccessFrames++;
-        
+
         if (mounted) {
           setState(() {
-            _verificationStatus = 'Match detected! ($_consecutiveSuccessFrames/$requiredConsecutiveFrames)';
+            _verificationStatus =
+                'Match detected! ($_consecutiveSuccessFrames/$requiredConsecutiveFrames)';
           });
         }
-        
+
         // If successful for 5 consecutive frames AND not yet started countdown
-        if (_consecutiveSuccessFrames >= requiredConsecutiveFrames && !_isVerificationStarted) {
+        if (_consecutiveSuccessFrames >= requiredConsecutiveFrames &&
+            !_isVerificationStarted) {
           _startCloseDoorCountdown();
         }
       } else {
         // Reset counter if any check fails (only if countdown hasn't started)
         if (!_isVerificationStarted) {
           _consecutiveSuccessFrames = 0;
-          
+
           if (mounted) {
             setState(() {
-              String status = 'Verifying... Similarity: ${(similarity * 100).toStringAsFixed(1)}%';
+              String status =
+                  'Verifying... Similarity: ${(similarity * 100).toStringAsFixed(1)}%';
               if (!lockerFrameCheck) {
                 status = 'Position package in locker frame';
               }
@@ -202,26 +231,27 @@ class _LiveScreenState extends State<LiveScreen> {
   /// Start the close door countdown after successful verification
   void _startCloseDoorCountdown() {
     debugPrint('Starting close door countdown');
-    
+
     // Set verification started flag
     _isVerificationStarted = true;
-    
+
     // a) Stop the image stream to pause continuous processing
     if (_controller != null && _controller!.value.isStreamingImages) {
       _controller!.stopImageStream();
     }
-    
+
     // Reset countdown
     _countdown = 3;
-    
+
     // b) Start countdown timer
     _closeDoorTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
-          _verificationStatus = 'Correct parcel in locker, ${_countdown}s to close door!';
+          _verificationStatus =
+              'Correct parcel in locker, ${_countdown}s to close door!';
         });
       }
-      
+
       if (_countdown > 0) {
         _countdown--;
       } else {
@@ -235,42 +265,45 @@ class _LiveScreenState extends State<LiveScreen> {
   /// Reset transaction on failure or mismatch during countdown
   Future<void> _resetTransaction() async {
     debugPrint('Resetting transaction due to failure/mismatch');
-    
+
     // a) Cancel close door timer if active
     _closeDoorTimer?.cancel();
     _closeDoorTimer = null;
-    
+
     // Stop verification
     _stopLiveVerification();
-    
-    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
-    
+
+    final transactionManager = Provider.of<TransactionManager>(
+      context,
+      listen: false,
+    );
+
     // Show loading indicator
     if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     // b) Call TransactionManager.deleteTransaction() for database rollback
     final deleted = await transactionManager.deleteTransaction();
-    
+
     // Close loading indicator
     if (mounted) {
       Navigator.of(context).pop();
     }
-    
+
     if (deleted && mounted) {
       // Show failure message
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Verification Failed'),
           content: const Text(
             'Package verification failed or was interrupted. Transaction has been cancelled. Please start again.',
@@ -285,12 +318,14 @@ class _LiveScreenState extends State<LiveScreen> {
           ],
         ),
       );
-      
+
       // c) Navigate back to Input Details Screen to restart
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const InputDetailsScreen(lockerId: null)),
+          MaterialPageRoute(
+            builder: (context) => const InputDetailsScreen(lockerId: null),
+          ),
           (route) => false,
         );
       }
@@ -299,7 +334,9 @@ class _LiveScreenState extends State<LiveScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Error'),
           content: const Text('Failed to reset transaction. Please try again.'),
           actions: [
@@ -314,29 +351,32 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   /// Calculate Cosine Similarity between two vectors
-  double _calculateCosineSimilarity(List<double> vectorA, List<double> vectorB) {
+  double _calculateCosineSimilarity(
+    List<double> vectorA,
+    List<double> vectorB,
+  ) {
     if (vectorA.length != vectorB.length) {
       debugPrint('Warning: Vector length mismatch');
       return 0.0;
     }
-    
+
     double dotProduct = 0.0;
     double magnitudeA = 0.0;
     double magnitudeB = 0.0;
-    
+
     for (int i = 0; i < vectorA.length; i++) {
       dotProduct += vectorA[i] * vectorB[i];
       magnitudeA += vectorA[i] * vectorA[i];
       magnitudeB += vectorB[i] * vectorB[i];
     }
-    
+
     magnitudeA = math.sqrt(magnitudeA);
     magnitudeB = math.sqrt(magnitudeB);
-    
+
     if (magnitudeA == 0.0 || magnitudeB == 0.0) {
       return 0.0;
     }
-    
+
     return dotProduct / (magnitudeA * magnitudeB);
   }
 
@@ -349,32 +389,32 @@ class _LiveScreenState extends State<LiveScreen> {
   /// Check if live text contains the reference waybill ID
   bool _checkIdMatch(String liveText, String referenceId) {
     if (referenceId.isEmpty) return true; // Skip check if no reference
-    
+
     // Normalize both texts for comparison
     final liveNormalized = liveText.toLowerCase().trim();
     final idNormalized = referenceId.toLowerCase().trim();
-    
+
     return liveNormalized.contains(idNormalized);
   }
 
   /// Check if detected objects have good positioning and confidence
   bool _checkPositionQuality(List<dynamic> boundingBoxes) {
     if (boundingBoxes.isEmpty) return false;
-    
+
     // Check if we have both package and waybill detected
     bool hasPackage = false;
     bool hasWaybill = false;
-    
+
     for (var box in boundingBoxes) {
       final confidence = box['confidence'] as double;
       final className = box['class'] as String;
-      
+
       if (confidence >= positionConfidenceThreshold) {
         if (className == 'package') hasPackage = true;
         if (className == 'waybill') hasWaybill = true;
       }
     }
-    
+
     return hasPackage && hasWaybill;
   }
 
@@ -382,31 +422,32 @@ class _LiveScreenState extends State<LiveScreen> {
   /// Called when countdown hits zero (isSuccess = true)
   Future<void> _stopAndFinalize(bool isSuccess) async {
     debugPrint('Finalizing transaction with success: $isSuccess');
-    
+
     _stopLiveVerification();
     _closeDoorTimer?.cancel();
     _closeDoorTimer = null;
-    
+
     if (isSuccess && mounted) {
-      final transactionManager = Provider.of<TransactionManager>(context, listen: false);
-      
+      final transactionManager = Provider.of<TransactionManager>(
+        context,
+        listen: false,
+      );
+
       // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-      
+
       // Call finalizeTransaction to update status to VERIFIED_SUCCESS
       final success = await transactionManager.finalizeTransaction();
-      
+
       // Close loading indicator
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       if (success && mounted) {
         // Show success dialog and navigate to delivery successful screen
         _showSuccessDialog();
@@ -415,9 +456,13 @@ class _LiveScreenState extends State<LiveScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             title: const Text('Error'),
-            content: const Text('Failed to finalize transaction. Please contact support.'),
+            content: const Text(
+              'Failed to finalize transaction. Please contact support.',
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -440,28 +485,29 @@ class _LiveScreenState extends State<LiveScreen> {
   /// Handle "Finalize Deposit" button press
   Future<void> _handleFinalizeDeposit() async {
     _stopLiveVerification();
-    
-    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
-    
+
+    final transactionManager = Provider.of<TransactionManager>(
+      context,
+      listen: false,
+    );
+
     // Show loading indicator
     if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     // Call finalizeTransaction
     final success = await transactionManager.finalizeTransaction();
-    
+
     // Close loading indicator
     if (mounted) {
       Navigator.of(context).pop();
     }
-    
+
     if (success && mounted) {
       _showSuccessDialog();
     } else if (mounted) {
@@ -469,9 +515,13 @@ class _LiveScreenState extends State<LiveScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Error'),
-          content: const Text('Failed to finalize transaction. Please try again.'),
+          content: const Text(
+            'Failed to finalize transaction. Please try again.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -507,41 +557,46 @@ class _LiveScreenState extends State<LiveScreen> {
         ],
       ),
     );
-    
+
     if (confirmed != true || !mounted) return;
-    
+
     _stopLiveVerification();
-    
-    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
-    
+
+    final transactionManager = Provider.of<TransactionManager>(
+      context,
+      listen: false,
+    );
+
     // Show loading indicator
     if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     // Call deleteTransaction
     final deleted = await transactionManager.deleteTransaction();
-    
+
     // Close loading indicator
     if (mounted) {
       Navigator.of(context).pop();
     }
-    
+
     if (deleted && mounted) {
       // Show cancellation success and navigate back
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Transaction Cancelled'),
-          content: const Text('The transaction has been cancelled and all data has been deleted.'),
+          content: const Text(
+            'The transaction has been cancelled and all data has been deleted.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -562,9 +617,13 @@ class _LiveScreenState extends State<LiveScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text('Error'),
-          content: const Text('Failed to cancel transaction. Please try again.'),
+          content: const Text(
+            'Failed to cancel transaction. Please try again.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -579,15 +638,18 @@ class _LiveScreenState extends State<LiveScreen> {
   void _showSuccessDialog() async {
     // Immediately send lock command to ESP32
     await _sendLockCommand();
-    
+
     // Show success dialog
     _showFinalSuccessDialog();
   }
 
   Future<void> _sendLockCommand() async {
-    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
+    final transactionManager = Provider.of<TransactionManager>(
+      context,
+      listen: false,
+    );
     final success = await transactionManager.lockLocker();
-    
+
     if (success) {
       debugPrint('✅ Lock command sent to ESP32 after successful verification');
     } else {
@@ -600,9 +662,7 @@ class _LiveScreenState extends State<LiveScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -617,11 +677,7 @@ class _LiveScreenState extends State<LiveScreen> {
               ),
               child: const Column(
                 children: [
-                  Icon(
-                    Icons.check_circle,
-                    size: 64,
-                    color: Colors.green,
-                  ),
+                  Icon(Icons.check_circle, size: 64, color: Colors.green),
                   SizedBox(height: 16),
                   Text(
                     'Success!',
@@ -644,10 +700,7 @@ class _LiveScreenState extends State<LiveScreen> {
                   Text(
                     'Verification complete. Door has been locked automatically.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF2C3E50),
-                    ),
+                    style: TextStyle(fontSize: 14, color: Color(0xFF2C3E50)),
                   ),
                 ],
               ),
@@ -656,24 +709,36 @@ class _LiveScreenState extends State<LiveScreen> {
             ElevatedButton(
               onPressed: () {
                 // Get transaction data before navigation
-                final transactionManager = Provider.of<TransactionManager>(context, listen: false);
+                final transactionManager = Provider.of<TransactionManager>(
+                  context,
+                  listen: false,
+                );
                 final transactionData = {
-                  'id': 'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
-                  'recipient': 'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
+                  'id':
+                      'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
+                  'recipient':
+                      'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
+                  'phone':
+                      '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
                   'locker': 'Locker: Smart Locker 001',
                   'status': 'Delivered',
+                  'timestamp': DateTime.now().millisecondsSinceEpoch,
+                  'waybill_id': transactionManager.waybillId,
+                  'waybill_details': transactionManager.waybillDetails,
+                  'qr_scanned': 'Yes',
+                  'package_details': 'Scanned and logged',
+                  'verification_status': 'Verified',
                   'color': Colors.green,
                 };
-                
+
                 // Close dialog first
                 Navigator.of(dialogContext).pop();
-                
+
                 // Navigate to ViewTransactionScreen and replace entire stack
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) => ViewTransactionScreen(
-                      transaction: transactionData,
-                    ),
+                    builder: (context) =>
+                        ViewTransactionScreen(transaction: transactionData),
                   ),
                   (route) => false, // Remove all previous routes
                 );
@@ -703,9 +768,7 @@ class _LiveScreenState extends State<LiveScreen> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(); // Close dialog
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => const HomeScreen(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
                   (route) => false,
                 );
               },
@@ -770,7 +833,7 @@ class _LiveScreenState extends State<LiveScreen> {
               ),
             ),
             const SizedBox(height: 40),
-            
+
             // Camera/Detection frame
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -785,14 +848,12 @@ class _LiveScreenState extends State<LiveScreen> {
                   borderRadius: BorderRadius.circular(10),
                   child: _isCameraInitialized && _controller != null
                       ? CameraPreview(_controller!)
-                      : const Center(
-                          child: CircularProgressIndicator(),
-                        ),
+                      : const Center(child: CircularProgressIndicator()),
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Verification Status text
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -802,17 +863,22 @@ class _LiveScreenState extends State<LiveScreen> {
                 style: TextStyle(
                   color: _isVerifying ? Colors.blue : Colors.grey,
                   fontSize: 14,
-                  fontWeight: _isVerifying ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: _isVerifying
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Info box
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE3F2FD),
                   borderRadius: BorderRadius.circular(8),
@@ -840,7 +906,7 @@ class _LiveScreenState extends State<LiveScreen> {
               ),
             ),
             const Spacer(),
-            
+
             // Action buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -867,7 +933,7 @@ class _LiveScreenState extends State<LiveScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // Cancel Transaction button
                   OutlinedButton(
                     onPressed: _isVerifying ? null : _handleCancelTransaction,

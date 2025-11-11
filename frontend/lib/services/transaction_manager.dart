@@ -44,11 +44,11 @@ class TransactionManager extends ChangeNotifier {
   static bool isTextContentMatch(String liveText, String storedText) {
     if (storedText.isEmpty) return true; // Skip check if no reference
     if (liveText.isEmpty) return false; // Fail if live text is empty
-    
+
     // Normalize texts: lowercase, remove extra whitespace
     final liveNormalized = liveText.toLowerCase().trim();
     final storedNormalized = storedText.toLowerCase().trim();
-    
+
     // Extract key tokens (words/numbers) from stored text
     // Filter out common words and very short tokens
     final storedTokens = storedNormalized
@@ -56,9 +56,9 @@ class TransactionManager extends ChangeNotifier {
         .where((token) => token.length >= 2) // Filter out single characters
         .where((token) => !_isCommonWord(token)) // Filter out common words
         .toSet(); // Use set to get unique tokens
-    
+
     if (storedTokens.isEmpty) return true; // No meaningful tokens to compare
-    
+
     // Count how many stored tokens appear in live text
     int matchCount = 0;
     for (var token in storedTokens) {
@@ -66,22 +66,49 @@ class TransactionManager extends ChangeNotifier {
         matchCount++;
       }
     }
-    
+
     // Calculate match percentage
     final matchPercentage = matchCount / storedTokens.length;
-    
-    debugPrint('Text match: $matchCount/${storedTokens.length} tokens (${(matchPercentage * 100).toStringAsFixed(1)}%)');
-    
+
+    debugPrint(
+      'Text match: $matchCount/${storedTokens.length} tokens (${(matchPercentage * 100).toStringAsFixed(1)}%)',
+    );
+
     // Return true if at least 70% of tokens match
     return matchPercentage >= 0.70;
   }
-  
+
   /// Helper function to filter out common words that don't add verification value
   static bool _isCommonWord(String word) {
     const commonWords = {
-      'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
-      'a', 'an', 'is', 'was', 'are', 'were', 'be', 'been', 'being',
-      'this', 'that', 'these', 'those', 'from', 'by', 'as', 'it',
+      'the',
+      'and',
+      'or',
+      'but',
+      'in',
+      'on',
+      'at',
+      'to',
+      'for',
+      'of',
+      'with',
+      'a',
+      'an',
+      'is',
+      'was',
+      'are',
+      'were',
+      'be',
+      'been',
+      'being',
+      'this',
+      'that',
+      'these',
+      'those',
+      'from',
+      'by',
+      'as',
+      'it',
     };
     return commonWords.contains(word);
   }
@@ -99,6 +126,35 @@ class TransactionManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Set locker ID (called after QR scan)
+  void setLockerId(String lockerId) {
+    _lockerId = lockerId;
+    notifyListeners();
+  }
+
+  // Validate all required data is present
+  bool isDataComplete() {
+    return _auditData != null &&
+        _lockerId != null &&
+        _waybillId != null &&
+        _waybillDetails != null &&
+        _embedding != null;
+  }
+
+  // Get summary of all collected data for confirmation
+  Map<String, dynamic> getTransactionSummary() {
+    return {
+      'recipient_first_name': _auditData?.firstName ?? '',
+      'recipient_last_name': _auditData?.lastName ?? '',
+      'recipient_phone': _auditData?.phoneNumber ?? '',
+      'locker_id': _lockerId ?? '',
+      'waybill_id': _waybillId ?? '',
+      'waybill_details': _waybillDetails ?? '',
+      'embedding_length': _embedding?.length ?? 0,
+      'is_complete': isDataComplete(),
+    };
+  }
+
   // Log transaction data with locker ID, waybill info and embedding
   Future<void> logTransactionData({
     required String lockerId,
@@ -110,22 +166,36 @@ class TransactionManager extends ChangeNotifier {
     _waybillId = waybillId;
     _waybillDetails = waybillDetails;
     _embedding = embedding;
-    
-    // Construct the full JSON payload by merging audit data with reference data
-    if (_auditData == null) {
-      debugPrint('Error: Audit data not set. Please call updateAuditData first.');
+
+    // Validate all required data is present
+    if (!isDataComplete()) {
+      debugPrint('Error: Incomplete transaction data. Missing:');
+      if (_auditData == null) debugPrint('- Audit data (recipient info)');
+      if (_lockerId == null) debugPrint('- Locker ID');
+      if (_waybillId == null) debugPrint('- Waybill ID');
+      if (_waybillDetails == null) debugPrint('- Waybill details');
+      if (_embedding == null) debugPrint('- Image embedding');
       return;
     }
+
+    debugPrint('📋 Transaction Data Summary:');
+    debugPrint('Recipient: ${_auditData!.firstName} ${_auditData!.lastName}');
+    debugPrint('Phone: ${_auditData!.phoneNumber}');
+    debugPrint('Locker: $lockerId');
+    debugPrint('Waybill: $waybillId');
+    debugPrint('Embedding: ${embedding.length} values');
+
+    // Construct the full JSON payload by merging audit data with reference data
 
     final payload = {
       // Audit data (recipient information) - match backend field names
       'recipient_first_name': _auditData!.firstName,
       'recipient_last_name': _auditData!.lastName,
       'recipient_phone': _auditData!.phoneNumber,
-      
+
       // Locker ID
       'locker_id': lockerId,
-      
+
       // Reference data (waybill and embedding) - match backend field names
       'waybill_id': waybillId,
       'waybill_details': waybillDetails,
@@ -137,9 +207,7 @@ class TransactionManager extends ChangeNotifier {
       final url = Uri.parse('${ApiConfig.baseUrl}/api/parcel/log');
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(payload),
       );
 
@@ -147,7 +215,7 @@ class TransactionManager extends ChangeNotifier {
         // Parse response to get transaction_id
         final responseData = json.decode(response.body);
         _transactionId = responseData['transaction_id'];
-        
+
         debugPrint('Transaction logged successfully: $waybillId');
         debugPrint('Transaction ID: $_transactionId');
         debugPrint('Response: ${response.body}');
@@ -158,7 +226,7 @@ class TransactionManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error logging transaction: $e');
     }
-    
+
     notifyListeners();
   }
 
@@ -166,7 +234,9 @@ class TransactionManager extends ChangeNotifier {
   Future<bool> fetchReferenceData() async {
     // Check if we have stored reference data
     if (_embedding != null && _waybillId != null) {
-      debugPrint('Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding!.length}');
+      debugPrint(
+        'Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding!.length}',
+      );
       return true;
     } else {
       debugPrint('No reference data available. Please scan package first.');
@@ -178,17 +248,19 @@ class TransactionManager extends ChangeNotifier {
   // Sends PUT request to /api/parcel/success/:id
   Future<bool> finalizeTransaction() async {
     if (_transactionId == null) {
-      debugPrint('Error: Cannot finalize transaction. No transaction ID available.');
+      debugPrint(
+        'Error: Cannot finalize transaction. No transaction ID available.',
+      );
       return false;
     }
 
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/parcel/success/$_transactionId');
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/parcel/success/$_transactionId',
+      );
       final response = await http.put(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200 || response.statusCode == 204) {
@@ -197,7 +269,9 @@ class TransactionManager extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to finalize transaction. Status: ${response.statusCode}');
+        debugPrint(
+          'Failed to finalize transaction. Status: ${response.statusCode}',
+        );
         debugPrint('Response: ${response.body}');
         return false;
       }
@@ -211,7 +285,9 @@ class TransactionManager extends ChangeNotifier {
   // Sends DELETE request to /api/parcel/:id
   Future<bool> deleteTransaction() async {
     if (_transactionId == null) {
-      debugPrint('Error: Cannot delete transaction. No transaction ID available.');
+      debugPrint(
+        'Error: Cannot delete transaction. No transaction ID available.',
+      );
       return false;
     }
 
@@ -219,15 +295,13 @@ class TransactionManager extends ChangeNotifier {
       final url = Uri.parse('${ApiConfig.baseUrl}/api/parcel/$_transactionId');
       final response = await http.delete(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         debugPrint('Transaction deleted successfully: $_transactionId');
         debugPrint('Response: ${response.body}');
-        
+
         // Clear local data after successful deletion
         _transactionId = null;
         _lockerId = null;
@@ -235,11 +309,13 @@ class TransactionManager extends ChangeNotifier {
         _waybillDetails = null;
         _embedding = null;
         _auditData = null;
-        
+
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to delete transaction. Status: ${response.statusCode}');
+        debugPrint(
+          'Failed to delete transaction. Status: ${response.statusCode}',
+        );
         debugPrint('Response: ${response.body}');
         return false;
       }
@@ -261,9 +337,7 @@ class TransactionManager extends ChangeNotifier {
       final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$_lockerId/lock');
       final response = await http.put(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200 || response.statusCode == 204) {

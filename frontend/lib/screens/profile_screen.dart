@@ -19,26 +19,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Ashanti Villadiego',
+      'phone': '09987654321',
       'locker': 'Locker: Smacker 222',
       'status': 'Delivered',
       'color': Colors.blue,
       'timestamp': DateTime(2025, 10, 27, 10, 30),
+      'waybill_id': 'WB002',
+      'waybill_details': 'Package from Shopee',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Verified',
     },
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Kimberly Isip',
+      'phone': '09555123456',
       'locker': 'Locker: Smacker 222',
       'status': 'Claimed',
       'color': Colors.green,
       'timestamp': DateTime(2025, 10, 28, 14, 15),
+      'waybill_id': 'WB003',
+      'waybill_details': 'Package from Lazada',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Verified',
     },
     {
       'id': 'Transaction ID: 000000',
       'recipient': 'Recipient: Kaiwen Chen',
+      'phone': '09123456789',
       'locker': 'Locker: Smacker 222',
       'status': 'Failed',
       'color': Colors.red,
       'timestamp': DateTime(2025, 11, 1, 9, 45),
+      'waybill_id': 'WB001',
+      'waybill_details': 'Package from Amazon',
+      'qr_scanned': 'Yes',
+      'package_details': 'Scanned and logged',
+      'verification_status': 'Failed',
     },
   ];
 
@@ -52,12 +70,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return allTransactions.where((t) {
         DateTime transactionDate = t['timestamp'];
         return transactionDate.year == selectedDate!.year &&
-               transactionDate.month == selectedDate!.month &&
-               transactionDate.day == selectedDate!.day;
+            transactionDate.month == selectedDate!.month &&
+            transactionDate.day == selectedDate!.day;
       }).toList();
     } else if (selectedFilter == 'Filter By Status') {
       if (selectedStatus == null) return allTransactions;
-      return allTransactions.where((t) => t['status'] == selectedStatus).toList();
+      return allTransactions
+          .where((t) => t['status'] == selectedStatus)
+          .toList();
     }
     return allTransactions;
   }
@@ -141,14 +161,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Calculate totals dynamically based on all transactions
   int get totalTransactions => allTransactions.length;
-  
-  int get totalCompleted => allTransactions.where((t) => 
-    t['status'] == 'Delivered' || t['status'] == 'Claimed'
-  ).length;
-  
-  int get totalFailed => allTransactions.where((t) => 
-    t['status'] == 'Failed'
-  ).length;
+
+  int get totalCompleted => allTransactions
+      .where((t) => t['status'] == 'Delivered' || t['status'] == 'Claimed')
+      .length;
+
+  int get totalFailed =>
+      allTransactions.where((t) => t['status'] == 'Failed').length;
 
   @override
   Widget build(BuildContext context) {
@@ -197,10 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 2),
                     Text(
                       'ID: ${UserData.userId}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
                     ),
                   ],
                 ),
@@ -208,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Contact Information Section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -234,14 +250,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.phone_outlined, color: Colors.black54, size: 18),
+                      const Icon(
+                        Icons.phone_outlined,
+                        color: Colors.black54,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'Phone Number:',
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -257,14 +274,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.email_outlined, color: Colors.black54, size: 18),
+                      const Icon(
+                        Icons.email_outlined,
+                        color: Colors.black54,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'Email:',
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
                       ),
                       const SizedBox(width: 8),
                       Flexible(
@@ -284,7 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Transaction Stats
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -310,10 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 2),
                         const Text(
                           'Total Transactions',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 9),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -341,10 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 2),
                         const Text(
                           'Total Completed',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 9),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -372,10 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 2),
                         const Text(
                           'Total Failed',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 9),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -386,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Filter tabs
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -401,7 +410,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           // Transaction List
           Expanded(
             child: ListView.builder(
@@ -440,7 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: isSelected ? const Color(0xFF5B9BFF) : Colors.white,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: isSelected ? const Color(0xFF5B9BFF) : Colors.grey.shade300,
+              color: isSelected
+                  ? const Color(0xFF5B9BFF)
+                  : Colors.grey.shade300,
             ),
           ),
           child: Text(
@@ -487,7 +498,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor,
                   borderRadius: BorderRadius.circular(10),
@@ -506,10 +520,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(
             recipient,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
           ),
           const SizedBox(height: 2),
           Row(
@@ -517,10 +528,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 locker,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                ),
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
               ),
               GestureDetector(
                 onTap: () {
@@ -531,9 +539,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         transaction: {
                           'id': transactionId,
                           'recipient': recipient,
+                          'phone':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {'phone': 'N/A'},
+                              )['phone'] ??
+                              'N/A',
                           'locker': locker,
                           'status': status,
                           'color': statusColor,
+                          'timestamp':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {'timestamp': DateTime.now()},
+                              )['timestamp'] ??
+                              DateTime.now(),
+                          'waybill_id':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {'waybill_id': 'N/A'},
+                              )['waybill_id'] ??
+                              'N/A',
+                          'waybill_details':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {
+                                  'waybill_details': 'No details available',
+                                },
+                              )['waybill_details'] ??
+                              'No details available',
+                          'qr_scanned':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {'qr_scanned': 'Yes'},
+                              )['qr_scanned'] ??
+                              'Yes',
+                          'package_details':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {
+                                  'package_details': 'Scanned and logged',
+                                },
+                              )['package_details'] ??
+                              'Scanned and logged',
+                          'verification_status':
+                              filteredTransactions.firstWhere(
+                                (t) =>
+                                    t['id'] == transactionId &&
+                                    t['recipient'] == recipient,
+                                orElse: () => {
+                                  'verification_status': 'Verified',
+                                },
+                              )['verification_status'] ??
+                              'Verified',
                         },
                       ),
                     ),

@@ -42,11 +42,17 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
       final phoneNumber = _phoneNumberController.text.trim();
 
       // Call TransactionManager to store audit data
-      Provider.of<TransactionManager>(context, listen: false).updateAuditData(
+      final transactionManager = Provider.of<TransactionManager>(
+        context,
+        listen: false,
+      );
+      transactionManager.updateAuditData(
         firstName: firstName,
         lastName: lastName,
         phoneNumber: phoneNumber,
       );
+
+      debugPrint('📝 Stored audit data: $firstName $lastName, $phoneNumber');
 
       // Get available locker automatically from backend
       setState(() {
@@ -62,14 +68,16 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
           final String lockerId = data['locker_id'];
           final String token = data['token'];
           final int availableCount = data['available_count'];
-          
-          debugPrint('✅ Assigned locker: $lockerId (Available: $availableCount)');
-          
+
+          debugPrint(
+            '✅ Assigned locker: $lockerId (Available: $availableCount)',
+          );
+
           if (mounted) {
             setState(() {
               _isGettingLocker = false;
             });
-            
+
             // Show assigned locker dialog
             await _showLockerAssignedDialog(lockerId, availableCount, token);
           }
@@ -79,10 +87,12 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
             setState(() {
               _isGettingLocker = false;
             });
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('All lockers are currently occupied. Please try again later.'),
+                content: Text(
+                  'All lockers are currently occupied. Please try again later.',
+                ),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -92,9 +102,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
             setState(() {
               _isGettingLocker = false;
             });
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to get locker: ${response.statusCode}')),
+              SnackBar(
+                content: Text('Failed to get locker: ${response.statusCode}'),
+              ),
             );
           }
         }
@@ -104,19 +116,23 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
           setState(() {
             _isGettingLocker = false;
           });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
-          );
+
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
       }
     }
   }
 
-  Future<void> _showLockerAssignedDialog(String lockerId, int availableCount, String token) async {
+  Future<void> _showLockerAssignedDialog(
+    String lockerId,
+    int availableCount,
+    String token,
+  ) async {
     // Show simple dialog and proceed to QR scanner
     // The LCD screen (HTML) will display the QR code
-    
+
     final proceed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -165,7 +181,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Instructions
             Container(
               padding: const EdgeInsets.all(16),
@@ -176,7 +192,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
               ),
               child: Column(
                 children: [
-                  Icon(Icons.qr_code_2, size: 48, color: Colors.orange.shade700),
+                  Icon(
+                    Icons.qr_code_2,
+                    size: 48,
+                    color: Colors.orange.shade700,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Next Step:',
@@ -197,7 +217,10 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(6),
@@ -205,7 +228,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer, size: 16, color: Colors.orange.shade700),
+                        Icon(
+                          Icons.timer,
+                          size: 16,
+                          color: Colors.orange.shade700,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Valid for 5 minutes',
@@ -222,7 +249,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Proceed to scan
             ElevatedButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -230,7 +257,10 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
               label: const Text('Scan QR from LCD Screen'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4285F4),
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 20,
+                ),
                 minimumSize: const Size(double.infinity, 54),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -238,7 +268,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            
+
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
@@ -247,7 +277,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
         ),
       ),
     );
-    
+
     // If user chose to proceed, navigate to QR scanner
     if (proceed == true && mounted) {
       Navigator.push(
@@ -309,7 +339,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.check_circle, size: 48, color: Colors.green),
+                      const Icon(
+                        Icons.check_circle,
+                        size: 48,
+                        color: Colors.green,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Locker scanned',
@@ -518,15 +552,11 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.grey.shade300,
-                            ),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.grey.shade300,
-                            ),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -537,9 +567,7 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Colors.red,
-                            ),
+                            borderSide: const BorderSide(color: Colors.red),
                           ),
                           focusedErrorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -554,7 +582,10 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
                             return 'Please enter phone number';
                           }
                           // Remove any non-digit characters for validation
-                          final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+                          final digitsOnly = value.replaceAll(
+                            RegExp(r'\D'),
+                            '',
+                          );
                           if (digitsOnly.length < 10) {
                             return 'Phone number must be at least 10 digits';
                           }
