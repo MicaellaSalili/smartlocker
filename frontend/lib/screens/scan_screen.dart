@@ -72,20 +72,27 @@ class _ScanScreenState extends State<ScanScreen> {
     });
 
     try {
-      // 1. Take the photo
-      final XFile image = await _cameraController!.takePicture();
+      debugPrint('📦 Starting parcel scan with real camera data...');
 
-      // 2. Call TFLiteProcessor methods
-      // Extract barcode ID and OCR details
+      // STEP 1: Capture high-quality image
+      final XFile image = await _cameraController!.takePicture();
+      debugPrint('📸 Image captured: ${image.path}');
+
+      // STEP 2: Extract waybill data using real OCR
       final ocrResult = await TFLiteProcessor.extractBarcodeIdAndOcr(image);
       final waybillId = ocrResult['waybillId'] ?? '';
       final waybillDetails = ocrResult['waybillDetails'] ?? '';
 
-      // Generate embedding vector
+      debugPrint('📄 Waybill ID: $waybillId');
+      debugPrint('📝 Details: $waybillDetails');
+
+      // STEP 3: Generate embedding from captured image
       final Uint8List imageBytes = await File(image.path).readAsBytes();
       final embedding = await TFLiteProcessor.generateEmbedding(imageBytes);
 
-      // 3. Call TransactionManager.logTransactionData
+      debugPrint('🧠 Embedding generated: ${embedding.length} dimensions');
+
+      // STEP 4: Validate and log transaction with real data
       if (mounted) {
         final transactionManager = Provider.of<TransactionManager>(
           context,
@@ -101,8 +108,16 @@ class _ScanScreenState extends State<ScanScreen> {
 
         debugPrint('✅ All data validated. Logging transaction...');
 
+        // STEP 5: Log complete transaction with real data
         await transactionManager.logTransactionData(
           lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
+          waybillId: waybillId,
+          waybillDetails: waybillDetails,
+          embedding: embedding,
+        );
+
+        // STEP 6: Store for live verification
+        transactionManager.setStoredData(
           waybillId: waybillId,
           waybillDetails: waybillDetails,
           embedding: embedding,
@@ -111,16 +126,20 @@ class _ScanScreenState extends State<ScanScreen> {
         debugPrint('📊 Final Transaction Summary:');
         final summary = transactionManager.getTransactionSummary();
         summary.forEach((key, value) => debugPrint('  $key: $value'));
+        debugPrint('💾 Data stored for live verification');
 
-        // 4. Navigate to success screen (using dialog then LiveScreen)
+        // STEP 7: Navigate to live verification
         _showScanSuccessDialog();
       }
     } catch (e) {
-      debugPrint('Error capturing and logging: $e');
+      debugPrint('❌ Scan error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) {

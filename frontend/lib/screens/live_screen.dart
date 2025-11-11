@@ -75,19 +75,23 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<void> _fetchReferenceData() async {
     try {
-      // Call TransactionManager to fetch reference data
+      // Get the stored data from transaction manager (from scan_screen)
       final transactionManager = Provider.of<TransactionManager>(
         context,
         listen: false,
       );
-      final hasData = await transactionManager.fetchReferenceData();
 
-      // Get the stored data from transaction manager
-      _referenceEmbedding = transactionManager.embedding;
-      _referenceWaybillId = transactionManager.waybillId;
-      _referenceWaybillDetails = transactionManager.waybillDetails;
+      // Use the stored data for verification
+      _referenceEmbedding = transactionManager.storedEmbedding;
+      _referenceWaybillId = transactionManager.storedWaybillId;
+      _referenceWaybillDetails = transactionManager.storedWaybillDetails;
 
-      if (hasData && _referenceEmbedding != null) {
+      debugPrint('📥 Reference data loaded:');
+      debugPrint('  Waybill ID: $_referenceWaybillId');
+      debugPrint('  Embedding size: ${_referenceEmbedding?.length ?? 0}');
+      debugPrint('  Details: $_referenceWaybillDetails');
+
+      if (_referenceEmbedding != null && _referenceWaybillId != null) {
         setState(() {
           _verificationStatus = 'Reference data loaded. Ready to verify.';
         });
@@ -100,7 +104,7 @@ class _LiveScreenState extends State<LiveScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error fetching reference data: $e');
+      debugPrint('❌ Error fetching reference data: $e');
       setState(() {
         _verificationStatus = 'Failed to fetch reference data';
       });

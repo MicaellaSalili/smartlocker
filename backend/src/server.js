@@ -194,7 +194,7 @@ app.post('/api/parcel/log', async (req, res) => {
       waybill_id,
       waybill_details,
       image_embedding_vector,
-      status: 'DELIVERED',
+      status: 'PENDING_VERIFICATION',
       initial_timestamp: new Date()
     });
 
@@ -272,9 +272,9 @@ app.put('/api/parcel/success/:id', async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
-  // Update status to DELIVERED
-  parcel.status = 'DELIVERED';
-  await parcel.save();
+    // Update status to VERIFIED_SUCCESS
+    parcel.status = 'VERIFIED_SUCCESS';
+    await parcel.save();
 
     // Door is already unlocked from QR scan, no need to unlock again
     // Just update the status in the database
@@ -299,48 +299,6 @@ app.put('/api/parcel/success/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update transaction', details: error.message });
   }
 });
-
-  // PUT /api/parcel/claim/:id - Update parcel status to CLAIMED and reset locker
-  app.put('/api/parcel/claim/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      // Validate MongoDB ObjectId format
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ error: 'Invalid transaction ID format' });
-      }
-
-      const parcel = await Parcel.findById(id);
-
-      if (!parcel) {
-        return res.status(404).json({ error: 'Transaction not found' });
-      }
-
-      // Update status to CLAIMED
-      parcel.status = 'CLAIMED';
-      await parcel.save();
-
-      // Find and reset the associated locker
-      if (parcel.locker_id) {
-        const locker = await Locker.findOne({ locker_id: parcel.locker_id });
-        if (locker) {
-          await locker.setAvailable();
-        }
-      }
-
-      res.json({
-        message: 'Parcel claimed and locker reset to AVAILABLE',
-        transaction_id: parcel._id,
-        locker_id: parcel.locker_id,
-        status: parcel.status,
-        claimed_at: parcel.updatedAt
-      });
-
-    } catch (error) {
-      console.error('Error claiming parcel:', error);
-      res.status(500).json({ error: 'Failed to claim parcel', details: error.message });
-    }
-  });
 
 // PUT /api/locker/:lockerId/lock - Lock the locker door (called after courier closes door)
 app.put('/api/locker/:lockerId/lock', async (req, res) => {
@@ -597,14 +555,6 @@ app.delete('/api/parcel/:id', async (req, res) => {
 
     if (!parcel) {
       return res.status(404).json({ error: 'Transaction not found' });
-    }
-
-    // Find and reset the associated locker
-    if (parcel.locker_id) {
-      const locker = await Locker.findOne({ locker_id: parcel.locker_id });
-      if (locker) {
-        await locker.setAvailable();
-      }
     }
 
     res.json({

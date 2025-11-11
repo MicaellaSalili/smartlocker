@@ -31,12 +31,22 @@ class TransactionManager extends ChangeNotifier {
   String? _waybillDetails;
   List<double>? _embedding;
 
+  // Store captured data for live verification
+  String? _storedWaybillId;
+  String? _storedWaybillDetails;
+  List<double>? _storedEmbedding;
+
   TransactionData? get auditData => _auditData;
   String? get transactionId => _transactionId;
   String? get lockerId => _lockerId;
   String? get waybillId => _waybillId;
   String? get waybillDetails => _waybillDetails;
   List<double>? get embedding => _embedding;
+
+  // Getters for stored data
+  String? get storedWaybillId => _storedWaybillId;
+  String? get storedWaybillDetails => _storedWaybillDetails;
+  List<double>? get storedEmbedding => _storedEmbedding;
 
   /// Robust text comparison utility function
   /// Returns true if liveText contains at least 70% of key tokens from storedText
@@ -129,6 +139,26 @@ class TransactionManager extends ChangeNotifier {
   // Set locker ID (called after QR scan)
   void setLockerId(String lockerId) {
     _lockerId = lockerId;
+    notifyListeners();
+  }
+
+  /// Store scanned data for later verification
+  void setStoredData({
+    required String waybillId,
+    required String waybillDetails,
+    required List<double> embedding,
+  }) {
+    _storedWaybillId = waybillId;
+    _storedWaybillDetails = waybillDetails;
+    _storedEmbedding = embedding;
+    notifyListeners();
+  }
+
+  /// Clear stored data
+  void clearStoredData() {
+    _storedWaybillId = null;
+    _storedWaybillDetails = null;
+    _storedEmbedding = null;
     notifyListeners();
   }
 
