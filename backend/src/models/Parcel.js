@@ -41,10 +41,10 @@ const parcelSchema = new mongoose.Schema({
       message: 'Embedding vector must contain exactly 128 numbers'
     }
   },
-    status: {
-      type: String,
-      enum: ['DELIVERED', 'CLAIMED'],
-      default: 'DELIVERED'
+  status: {
+    type: String,
+    enum: ['SCANNED', 'DELIVERED', 'CLAIMED'],
+    default: 'SCANNED'
   },
   initial_timestamp: {
     type: Date,

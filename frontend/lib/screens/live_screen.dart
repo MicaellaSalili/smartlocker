@@ -41,6 +41,10 @@ class _LiveScreenState extends State<LiveScreen> {
   int _countdown = 3;
   bool _isVerificationStarted = false;
 
+  // Frame processing retry/backoff state
+  int _frameProcessFailureCount = 0;
+  Timer? _frameProcessBackoffTimer;
+
   static const int requiredConsecutiveFrames = 5;
   static const double similarityThreshold = 0.85;
   static const double positionConfidenceThreshold = 0.80;
@@ -240,9 +244,50 @@ class _LiveScreenState extends State<LiveScreen> {
     } catch (e) {
       debugPrint('Error processing frame: $e');
       if (!_isVerificationStarted) {
+        _frameProcessFailureCount++;
         _consecutiveSuccessFrames = 0;
+        if (_frameProcessFailureCount >= 3) {
+          await _handleFatalProcessingFailure();
+          return;
+        } else {
+          _startFrameBackoff();
+          return;
+        }
       }
     }
+  }
+
+  /// Start exponential backoff after frame processing failure
+  void _startFrameBackoff() {
+    if (_controller != null && _controller!.value.isStreamingImages) {
+      _controller!.stopImageStream();
+    }
+    int delayMs = 1000 * (1 << (_frameProcessFailureCount - 1)); // 1s, 2s, 4s
+    debugPrint('Frame processing backoff: ${delayMs ~/ 1000}s');
+    _frameProcessBackoffTimer?.cancel();
+    _frameProcessBackoffTimer = Timer(Duration(milliseconds: delayMs), () {
+      if (_controller != null && !_controller!.value.isStreamingImages) {
+        _controller!.startImageStream((CameraImage image) async {
+          if (!_isVerifying || _isProcessingFrame) return;
+          _isProcessingFrame = true;
+          await _processFrame(image);
+          _isProcessingFrame = false;
+        });
+      }
+      _frameProcessBackoffTimer = null;
+      _frameProcessFailureCount = 0;
+    });
+  }
+
+  /// Handle fatal frame processing failure (after 3 consecutive failures)
+  Future<void> _handleFatalProcessingFailure() async {
+    debugPrint('Fatal frame processing failure. Rolling back transaction.');
+    _stopLiveVerification();
+    setState(() {
+      _currentStep = 8;
+      _verificationStatus = 'Frame processing failed. Please try again.';
+    });
+    await _resetTransaction();
   }
 
   /// Start the close door countdown after successful verification
@@ -277,17 +322,10 @@ class _LiveScreenState extends State<LiveScreen> {
       if (_countdown > 1) {
         _countdown--; // Countdown logic updated to show 5-1
       } else {
-        // Countdown finished, hide popup and continue verifying step 6
+        // Countdown finished, finalize transaction and navigate to success
         timer.cancel();
-        if (mounted) {
-          setState(() {
-            _showDoorCountdown = false;
-            // Return to live detection for verifying 6/6
-            // The verification loop will continue and show success screen after required frames
-            // Do not call _stopAndFinalize here
-            // Ensure _currentStep remains at 7 for 6/6 verification
-          });
-        }
+        _closeDoorTimer = null;
+        _stopAndFinalize(true);
       }
     });
   }
@@ -813,6 +851,9 @@ class _LiveScreenState extends State<LiveScreen> {
     if (_controller != null && _controller!.value.isStreamingImages) {
       _controller!.stopImageStream();
     }
+    _frameProcessBackoffTimer?.cancel();
+    _frameProcessBackoffTimer = null;
+    _frameProcessFailureCount = 0;
     setState(() {
       _isVerifying = false;
     });

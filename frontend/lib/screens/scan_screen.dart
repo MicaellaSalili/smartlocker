@@ -107,21 +107,30 @@ class _ScanScreenState extends State<ScanScreen> {
           'Missing recipient information. Please go back and enter details.',
         );
       }
-      await transactionManager.logTransactionData(
-        lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
-        waybillId: _waybillId ?? '',
-        waybillDetails: _waybillDetails ?? '',
-        embedding: embedding,
-      );
-      setState(() {
-        _scanStep = 3;
-      });
-      await Future.delayed(const Duration(milliseconds: 800));
+      try {
+        await transactionManager.logTransactionData(
+          lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
+          waybillId: _waybillId ?? '',
+          waybillDetails: _waybillDetails ?? '',
+          embedding: embedding,
+        );
+        setState(() {
+          _scanStep = 3;
+        });
+        await Future.delayed(const Duration(milliseconds: 800));
 
-      // Step 4: Success
-      setState(() {
-        _scanStep = 4;
-      });
+        // Step 4: Success
+        setState(() {
+          _scanStep = 4;
+        });
+      } catch (e) {
+        debugPrint('Error logging transaction: $e');
+        setState(() {
+          _errorMessage = e.toString();
+          _scanStep = 5;
+        });
+        return;
+      }
     } catch (e) {
       debugPrint('Error capturing and logging: $e');
       setState(() {
@@ -569,7 +578,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Make sure to clearly show:\n1. Parcel Image and Embedding\n2. Waybill ID\n3. Waybill Details',
+                  'Make sure to clearly show:\n1. Waybill ID\n2.Waybill Details \n3. Parcel Image and Embedding',
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -632,8 +641,6 @@ class _ScanScreenState extends State<ScanScreen> {
       return const SizedBox.shrink();
     }
   }
-
-  // Removed unused widgets and redundant code for clarity.
 }
 
 

@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'api_config.dart';
+// ...existing code...
+import 'dart:math';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
+import '../utils/app_constants.dart';
 
 class TransactionData {
   String firstName;
@@ -24,6 +28,79 @@ class TransactionData {
 }
 
 class TransactionManager extends ChangeNotifier {
+  /// Private helper for retrying API calls with exponential backoff and jitter
+  Future<http.Response> _retryWrapper(Future<http.Response> Function() apiCall) async {
+    int maxAttempts = 3;
+    int attempt = 0;
+    final random = Random();
+    while (attempt < maxAttempts) {
+      try {
+        final response = await apiCall();
+        return response;
+      } catch (e) {
+        attempt++;
+        if (attempt >= maxAttempts) rethrow;
+        // Exponential backoff: 1s, 2s, 4s + jitter (0-500ms)
+        int baseDelay = pow(2, attempt - 1).toInt() * 1000;
+        int jitter = random.nextInt(500);
+        await Future.delayed(Duration(milliseconds: baseDelay + jitter));
+      }
+    }
+    throw Exception('Max retry attempts reached');
+  }
+
+  /// POST scan data to /api/parcels/scan with retry logic
+  Future<String> postScanData(Map<String, dynamic> scanData) async {
+    final url = Uri.parse('${AppConstants.BASE_API_URL}/parcels/scan');
+    try {
+      final response = await _retryWrapper(() => http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(scanData),
+      ));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return data['transaction_id']?.toString() ?? '';
+      } else {
+        throw Exception('Failed to post scan data: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error posting scan data: $e');
+      rethrow;
+    }
+  }
+
+  /// Send lock command via MQTT to smartlocker/control/lock
+  void sendLockCommand(String lockerId) async {
+    final client = MqttServerClient(AppConstants.MQTT_BROKER_HOST, 'smartlocker_${DateTime.now().millisecondsSinceEpoch}');
+    client.port = 1883;
+    client.logging(on: false);
+    client.keepAlivePeriod = 20;
+    client.onDisconnected = () => debugPrint('MQTT disconnected');
+    client.onConnected = () => debugPrint('MQTT connected');
+    client.onSubscribed = (topic) => debugPrint('Subscribed to $topic');
+
+    try {
+      await client.connect();
+      final builder = MqttClientPayloadBuilder();
+      builder.addString(json.encode({
+        'lockerId': lockerId,
+        'command': 'LOCK',
+      }));
+      client.publishMessage(
+        AppConstants.MQTT_LOCK_TOPIC,
+        MqttQos.atLeastOnce,
+        builder.payload!,
+        retain: false,
+      );
+      debugPrint('LOCK command sent for locker $lockerId');
+      await Future.delayed(const Duration(seconds: 2));
+      client.disconnect();
+    } catch (e) {
+      debugPrint('MQTT error: $e');
+      client.disconnect();
+    }
+  }
   TransactionData? _auditData;
   String? _transactionId; // MongoDB _id
   String? _lockerId;
@@ -204,7 +281,7 @@ class TransactionManager extends ChangeNotifier {
 
     try {
       // Send POST request to /api/parcel/log
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/parcel/log');
+      final url = Uri.parse('${AppConstants.BASE_API_URL}/parcel/log');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -232,14 +309,34 @@ class TransactionManager extends ChangeNotifier {
 
   // Fetch reference data (returns the stored embedding and waybill info)
   Future<bool> fetchReferenceData() async {
-    // Check if we have stored reference data
-    if (_embedding != null && _waybillId != null) {
-      debugPrint(
-        'Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding!.length}',
-      );
-      return true;
-    } else {
-      debugPrint('No reference data available. Please scan package first.');
+    try {
+      // Use lockerId as identifier (customize if needed)
+      if (_lockerId == null) {
+        debugPrint('fetchReferenceData: No lockerId available');
+        return false;
+      }
+      final url = Uri.parse('${AppConstants.BASE_API_URL}/parcels/fetch?lockerId=$_lockerId');
+      final response = await _retryWrapper(() => http.get(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Update internal state variables
+        _embedding = (data['embedding'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList();
+        _waybillId = data['waybill_id']?.toString();
+        _waybillDetails = data['waybill_details']?.toString();
+        if (_embedding != null && _waybillId != null && _waybillDetails != null) {
+          debugPrint('Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding!.length}');
+          notifyListeners();
+          return true;
+        } else {
+          debugPrint('fetchReferenceData: Missing fields in response');
+          return false;
+        }
+      } else {
+        debugPrint('fetchReferenceData: HTTP ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('fetchReferenceData error: $e');
       return false;
     }
   }
@@ -256,7 +353,7 @@ class TransactionManager extends ChangeNotifier {
 
     try {
       final url = Uri.parse(
-        '${ApiConfig.baseUrl}/api/parcel/success/$_transactionId',
+        '${AppConstants.BASE_API_URL}/parcel/success/$_transactionId',
       );
       final response = await http.put(
         url,
@@ -282,26 +379,18 @@ class TransactionManager extends ChangeNotifier {
   }
 
   // Delete/rollback transaction on failure
-  // Sends DELETE request to /api/parcel/:id
+  // Sends DELETE request to /api/parcels/rollback?waybillId=...
   Future<bool> deleteTransaction() async {
-    if (_transactionId == null) {
-      debugPrint(
-        'Error: Cannot delete transaction. No transaction ID available.',
-      );
+    if (_waybillId == null) {
+      debugPrint('Error: Cannot delete transaction. No waybill ID available.');
       return false;
     }
-
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/parcel/$_transactionId');
-      final response = await http.delete(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
+      final url = Uri.parse('${AppConstants.BASE_API_URL}/parcels/rollback?waybillId=$_waybillId');
+      final response = await _retryWrapper(() => http.delete(url));
       if (response.statusCode == 200 || response.statusCode == 204) {
-        debugPrint('Transaction deleted successfully: $_transactionId');
+        debugPrint('Transaction rollback (delete) successful for waybillId: $_waybillId');
         debugPrint('Response: ${response.body}');
-
         // Clear local data after successful deletion
         _transactionId = null;
         _lockerId = null;
@@ -309,18 +398,15 @@ class TransactionManager extends ChangeNotifier {
         _waybillDetails = null;
         _embedding = null;
         _auditData = null;
-
         notifyListeners();
         return true;
       } else {
-        debugPrint(
-          'Failed to delete transaction. Status: ${response.statusCode}',
-        );
+        debugPrint('Failed to rollback transaction. Status: ${response.statusCode}');
         debugPrint('Response: ${response.body}');
         return false;
       }
     } catch (e) {
-      debugPrint('Error deleting transaction: $e');
+      debugPrint('Error rolling back transaction: $e');
       return false;
     }
   }
@@ -334,7 +420,7 @@ class TransactionManager extends ChangeNotifier {
     }
 
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$_lockerId/lock');
+      final url = Uri.parse('${AppConstants.BASE_API_URL}/locker/$_lockerId/lock');
       final response = await http.put(
         url,
         headers: {'Content-Type': 'application/json'},
