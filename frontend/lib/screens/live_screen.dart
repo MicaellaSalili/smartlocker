@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
@@ -718,8 +717,7 @@ class _LiveScreenState extends State<LiveScreen> {
                       'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
                   'recipient':
                       'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
-                  'phone':
-                      '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
+                  'phone': transactionManager.auditData?.phoneNumber ?? "N/A",
                   'locker': 'Locker: Smart Locker 001',
                   'status': 'Delivered',
                   'timestamp': DateTime.now().millisecondsSinceEpoch,

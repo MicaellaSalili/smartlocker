@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const Parcel = require('./models/Parcel');
 const Locker = require('./models/Locker');
 const mqttService = require('./services/mqttService');
+const parcelController = require('../controllers/parcelController');
 
 const app = express();
 
@@ -59,6 +60,8 @@ function broadcastToQRGenerator(data) {
 // Routes
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', require('./routes/auth'));
+// POST /api/parcels/finalize - Finalize transaction by waybill_id
+app.post('/api/parcels/finalize', parcelController.finalizeTransaction);
 
 // GET /api/lockers - Get all lockers with their status
 app.get('/api/lockers', async (req, res) => {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import '../services/tflite_processor.dart';
@@ -22,6 +21,8 @@ class _ScanScreenState extends State<ScanScreen> {
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
+  String _scannedWaybillId = '';
+  String _scannedText = '';
 
   @override
   void initState() {
@@ -73,13 +74,53 @@ class _ScanScreenState extends State<ScanScreen> {
 
     try {
       // 1. Take the photo
+      debugPrint('\n📸 Capturing image...');
       final XFile image = await _cameraController!.takePicture();
+      debugPrint('✅ Image captured: ${image.path}');
+      debugPrint('📏 Image size: ${await image.length()} bytes');
 
       // 2. Call TFLiteProcessor methods
       // Extract barcode ID and OCR details
+      debugPrint('🔍 Starting OCR processing...');
       final ocrResult = await TFLiteProcessor.extractBarcodeIdAndOcr(image);
+
+      debugPrint('\n🟡 RAW OCR RESULT FROM PROCESSOR:');
+      debugPrint('   Keys in result: ${ocrResult.keys.toList()}');
+      debugPrint('   waybillId value: ${ocrResult['waybillId']}');
+      debugPrint(
+        '   waybillDetails length: ${ocrResult['waybillDetails']?.length ?? 0}',
+      );
+
       final waybillId = ocrResult['waybillId'] ?? '';
       final waybillDetails = ocrResult['waybillDetails'] ?? '';
+
+      debugPrint('\n========== SCAN RESULTS ==========');
+      debugPrint('📦 Waybill ID: $waybillId');
+      debugPrint('📄 Full Details:\n$waybillDetails');
+      debugPrint('==================================\n');
+
+      // Store scanned text for display
+      if (mounted) {
+        setState(() {
+          _scannedWaybillId = waybillId;
+          _scannedText = waybillDetails;
+        });
+
+        // Show warning if no text was detected
+        if (waybillId.contains('[NO_TEXT_DETECTED]') || 
+            waybillId.contains('[ERROR') || 
+            waybillId.contains('[EMPTY]')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '⚠️ No text detected! Check:\n• Lighting is bright\n• Waybill is flat and in focus\n• Text is clearly visible',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
 
       // Generate embedding vector
       final Uint8List imageBytes = await File(image.path).readAsBytes();
@@ -245,6 +286,93 @@ class _ScanScreenState extends State<ScanScreen> {
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Scanned Text Display
+            if (_scannedText.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    border: Border.all(
+                      color: const Color(0xFF4285F4),
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF4285F4),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Scanned Text:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF4285F4),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_scannedWaybillId.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Text(
+                              'Waybill ID: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                _scannedWaybillId,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                      ],
+                      const Text(
+                        'Full Text:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 100),
+                        child: SingleChildScrollView(
+                          child: Text(
+                            _scannedText,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const Spacer(),
 
             // Buttons

@@ -1,118 +1,205 @@
 import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
+import 'dart:ui';
 import 'package:camera/camera.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:tflite_flutter/tflite_flutter.dart';
+import 'text_recognition_service.dart';
 
 class TFLiteProcessor {
   // Private constructor to prevent instantiation
   TFLiteProcessor._();
 
-  // Simulated waybill ID for consistent testing (normally would come from real OCR)
-  static String _simulatedWaybillId = 'WB123456789';
+  /// Helper: Convert CameraImage to InputImage for real-time processing
+  /// Platform-specific implementation for Android/iOS
+  static InputImage convertCameraImageToInputImage(
+    CameraImage image,
+    CameraDescription camera,
+    int sensorOrientation,
+  ) {
+    // Get image rotation
+    final rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    if (rotation == null) {
+      throw Exception('Invalid sensor orientation: $sensorOrientation');
+    }
 
-  /// Simulates running OCR on an image to extract barcode ID and waybill details
+    // Get image format
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null) {
+      throw Exception('Unsupported image format: ${image.format.raw}');
+    }
+
+    // Concatenate all plane bytes
+    final allBytes = BytesBuilder();
+    for (final plane in image.planes) {
+      allBytes.add(plane.bytes);
+    }
+    final bytes = allBytes.toBytes();
+
+    // Build metadata
+    final metadata = InputImageMetadata(
+      size: Size(image.width.toDouble(), image.height.toDouble()),
+      rotation: rotation,
+      format: format,
+      bytesPerRow: image.planes.first.bytesPerRow,
+    );
+
+    return InputImage.fromBytes(bytes: bytes, metadata: metadata);
+  }
+
+  /// Extracts barcode ID and OCR text from an image using Google ML Kit
   /// Returns a map with 'waybillId' and 'waybillDetails'
-  static Future<Map<String, String>> extractBarcodeIdAndOcr(XFile imageFile) async {
-    // TODO: Implement actual OCR processing using google_mlkit_text_recognition
-    // This is a placeholder that simulates the OCR process
-    
-    await Future.delayed(const Duration(seconds: 1)); // Simulate processing time
-    
-    // Generate a consistent waybill ID for this session
-    _simulatedWaybillId = 'WB${DateTime.now().millisecondsSinceEpoch}';
-    
-    // Simulated OCR results - include waybill ID in details
-    return {
-      'waybillId': _simulatedWaybillId,
-      'waybillDetails': 'Sample waybill details - ID: $_simulatedWaybillId - Sender: ABC Corp',
-    };
+  static Future<Map<String, String>> extractBarcodeIdAndOcr(
+    XFile imageFile,
+  ) async {
+    print('\n🔵 ENTERING extractBarcodeIdAndOcr()');
+    print('📁 Image file path: ${imageFile.path}');
+
+    try {
+      print('🔵 Creating TextRecognitionService...');
+      final textRecognitionService = TextRecognitionService();
+
+      print('🔵 Calling processImageFile...');
+      final result = await textRecognitionService.processImageFile(imageFile);
+
+      print('🔵 Got result from processImageFile');
+      print('🔵 Result keys: ${result.keys.toList()}');
+      print('🔵 Result waybillId: ${result['waybillId']}');
+      print(
+        '🔵 Result fullText length: ${result['fullText']?.toString().length ?? 0}',
+      );
+
+      textRecognitionService.dispose();
+
+      // NEVER auto-generate - always use what ML Kit actually scanned
+      final String waybillId = result['waybillId'] ?? '[EMPTY]';
+
+      print('🔵 Final waybillId after processing: $waybillId');
+      
+      if (waybillId == '[EMPTY]' || waybillId == '[NO_TEXT_DETECTED]') {
+        print('⚠️ WARNING: ML Kit did not detect any text!');
+        print('   Check: lighting, focus, text visibility, camera permissions');
+      }
+
+      // Get the full recognized text
+      final String fullText = result['fullText'] ?? '';
+      print(
+        '🔵 Full text first 100 chars: ${fullText.substring(0, fullText.length > 100 ? 100 : fullText.length)}',
+      );
+
+      // Format J&T Express specific details
+      final StringBuffer detailsBuffer = StringBuffer();
+      detailsBuffer.writeln('=== J&T EXPRESS WAYBILL ===');
+
+      if (result['orderId'] != null &&
+          result['orderId'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Order ID: ${result['orderId']}');
+      }
+      if (result['trackingNumber'] != null &&
+          result['trackingNumber'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Tracking: ${result['trackingNumber']}');
+      }
+      if (result['barcode'] != null &&
+          result['barcode'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Barcode: ${result['barcode']}');
+      }
+      if (result['buyerName'] != null &&
+          result['buyerName'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Buyer: ${result['buyerName']}');
+      }
+      if (result['productQuantity'] != null &&
+          result['productQuantity'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Quantity: ${result['productQuantity']}');
+      }
+      if (result['weight'] != null && result['weight'].toString().isNotEmpty) {
+        detailsBuffer.writeln('Weight: ${result['weight']}');
+      }
+      detailsBuffer.writeln('========================');
+      detailsBuffer.writeln('\nFull Text:\n$fullText');
+
+      final String waybillDetails = detailsBuffer.toString();
+
+      // Check if OCR actually read anything
+      if (fullText.isEmpty || fullText.length < 10) {
+        print('⚠️ WARNING: OCR returned very little or no text!');
+        print('   This usually means:');
+        print('   - Poor lighting');
+        print('   - Text is blurry/out of focus');
+        print('   - Image quality too low');
+        print('   - Text is too small in the frame');
+      }
+
+      // Debug logging with clear separation
+      print('\n' + '=' * 50);
+      print('🔍 OCR DEBUG - WHAT ML KIT ACTUALLY SAW:');
+      print('=' * 50);
+      print('📝 FULL RAW TEXT FROM IMAGE:');
+      print('---');
+      print(result['fullText'] ?? '[EMPTY - NO TEXT DETECTED]');
+      print('---');
+      print('\n🎯 Extracted Data:');
+      print('  • Order ID (Waybill ID): $waybillId');
+      print('  • All Barcodes: ${result['barcodes']}');
+      print('  • Buyer Name: ${result['buyerName']}');
+      print('  • Weight: ${result['weight']}');
+      print('  • Quantity: ${result['productQuantity']}');
+      print('=' * 50 + '\n');
+
+      return {'waybillId': waybillId, 'waybillDetails': waybillDetails};
+    } catch (e) {
+      print('❌ ERROR in extractBarcodeIdAndOcr: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return {
+        'waybillId': '[ERROR: $e]',
+        'waybillDetails': 'Error extracting text: $e\n\nPlease try again with better lighting and ensure the waybill is clearly visible.',
+      };
+    }
   }
 
   /// Simulates TFLite Model 2 execution to generate an embedding vector
   /// Returns a list of doubles representing the embedding
   static Future<List<double>> generateEmbedding(Uint8List imageBytes) async {
-    // TODO: Implement actual TFLite model execution using tflite_flutter
-    // This is a placeholder that simulates the embedding generation
-    
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate processing time
-    
-    // Generate a simulated embedding vector (128 dimensions as an example)
-    final embedding = List<double>.generate(
-      128,
-      (index) => (index * 0.01) % 1.0,
+    final interpreter = await Interpreter.fromAsset(
+      'model/mobilenet_v2.tflite',
     );
-    
-    return embedding;
+    // Preprocess imageBytes to match model input shape (e.g., 224x224 RGB)
+    // This is a simplified example, use tflite_flutter_helper for real preprocessing
+    final input = imageBytes.buffer.asUint8List();
+    var output = List.filled(128, 0.0).reshape([1, 128]);
+    interpreter.run(input, output);
+    interpreter.close();
+    return List<double>.from(output[0]);
   }
 
   /// Simulates live verification processing on a camera frame
   /// Returns a map containing object detection boxes, live embedding, OCR text, and locker detection
-  static Future<Map<String, dynamic>> runLiveVerification(CameraImage frame) async {
-    // TODO: Implement actual TFLite and OCR processing
-    // This is a placeholder that simulates the live verification process
-    
-    await Future.delayed(const Duration(milliseconds: 300)); // Simulate processing time
-    
-    // a) Simulate TFLite Model 1 (Object Detection) - bounding boxes
-    final boundingBoxes = [
-      {
-        'class': 'package',
-        'confidence': 0.95,
-        'x': 100.0,
-        'y': 150.0,
-        'width': 200.0,
-        'height': 250.0,
-      },
-      {
-        'class': 'waybill',
-        'confidence': 0.88,
-        'x': 120.0,
-        'y': 180.0,
-        'width': 160.0,
-        'height': 80.0,
-      },
-      {
-        'class': 'locker_frame',
-        'confidence': 0.92,
-        'x': 50.0,
-        'y': 100.0,
-        'width': 300.0,
-        'height': 350.0,
-      },
-    ];
-    
-    // Check if locker_frame is detected with sufficient confidence
+  static Future<Map<String, dynamic>> runLiveVerification(
+    CameraImage frame,
+  ) async {
+    // Platform-specific: convert CameraImage to InputImage
+    // final inputImage = convertCameraImageToInputImage(frame); // Uncomment when implemented
+
+    // For now, skip actual object detection and return empty results
+    List<Map<String, dynamic>> boundingBoxes = [];
     bool lockerDetected = false;
-    for (var box in boundingBoxes) {
-      if (box['class'] == 'locker_frame' && (box['confidence'] as double) >= 0.85) {
-        lockerDetected = true;
-        break;
-      }
-    }
-    
-    // b) Simulate TFLite Model 2 (Embedding Generation) - live embedding vector
-    // Removed random noise to ensure consistent ~99% similarity for testing
-    final liveEmbedding = List<double>.generate(
-      128,
-      (index) => (index * 0.01) % 1.0, // Identical to generateEmbedding() for consistent matching
-    );
-    
-    // c) Simulate OCR - live waybill details (must include the waybill ID for ID matching)
-    final liveWaybillDetails = 'Sample waybill details - ID: $_simulatedWaybillId - Sender: ABC Corp';
-    
+
+    // TODO: Implement object detection, embedding, and OCR using inputImage
+
     return {
       'boundingBoxes': boundingBoxes,
-      'liveEmbedding': liveEmbedding,
-      'liveWaybillDetails': liveWaybillDetails,
-      'lockerDetected': lockerDetected, // New field for locker frame detection
+      'liveEmbedding': [], // Fill with actual embedding
+      'liveWaybillDetails': '', // Fill with actual OCR result
+      'lockerDetected': lockerDetected,
     };
   }
 
   /// Generate a placeholder parcel (waybill id, details and embedding) for bypass/testing flows
   static Future<Map<String, dynamic>> generatePlaceholderParcel() async {
-    // Reuse the simulated waybill id and embedding
-    _simulatedWaybillId = 'WB_PLACEHOLDER_${DateTime.now().millisecondsSinceEpoch}';
+    // Generate a placeholder waybill id
+    final placeholderWaybillId =
+        'WB_PLACEHOLDER_${DateTime.now().millisecondsSinceEpoch}';
 
-    final waybillDetails = 'Placeholder waybill details - ID: $_simulatedWaybillId - (bypass)';
+    final waybillDetails =
+        'Placeholder waybill details - ID: $placeholderWaybillId - (bypass)';
 
     final embedding = List<double>.generate(
       128,
@@ -120,7 +207,7 @@ class TFLiteProcessor {
     );
 
     return {
-      'waybillId': _simulatedWaybillId,
+      'waybillId': placeholderWaybillId,
       'waybillDetails': waybillDetails,
       'embedding': embedding,
     };

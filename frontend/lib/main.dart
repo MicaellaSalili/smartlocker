@@ -6,6 +6,7 @@ import 'screens/home_screen.dart';
 import 'screens/input_details_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/live_screen.dart';
+import 'screens/text_recognition_screen.dart';
 import 'screens/signup/registration_screen.dart';
 import 'services/transaction_manager.dart';
 
@@ -34,6 +35,7 @@ class MainApp extends StatelessWidget {
           '/input_details': (context) => const InputDetailsScreen(),
           '/scan': (context) => const ScanScreen(),
           '/live': (context) => const LiveScreen(),
+          '/text_recognition': (context) => const TextRecognitionScreen(),
           '/signup_personal': (context) => const RegistrationScreen(),
         },
       ),

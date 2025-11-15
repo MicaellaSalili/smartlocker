@@ -6,26 +6,14 @@ class ViewTransactionScreen extends StatelessWidget {
 
   const ViewTransactionScreen({super.key, required this.transaction});
 
-  String _formatTimestamp(dynamic timestamp) {
+  String _formatTimestamp(DateTime? timestamp) {
     if (timestamp == null) return '2025-10-27 10:30:00';
-
-    DateTime dateTime;
-    if (timestamp is DateTime) {
-      dateTime = timestamp;
-    } else if (timestamp is int) {
-      dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    } else if (timestamp is String) {
-      dateTime = DateTime.tryParse(timestamp) ?? DateTime.now();
-    } else {
-      return '2025-10-27 10:30:00';
-    }
-
-    String year = dateTime.year.toString();
-    String month = dateTime.month.toString().padLeft(2, '0');
-    String day = dateTime.day.toString().padLeft(2, '0');
-    String hour = dateTime.hour.toString().padLeft(2, '0');
-    String minute = dateTime.minute.toString().padLeft(2, '0');
-    String second = dateTime.second.toString().padLeft(2, '0');
+    String year = timestamp.year.toString();
+    String month = timestamp.month.toString().padLeft(2, '0');
+    String day = timestamp.day.toString().padLeft(2, '0');
+    String hour = timestamp.hour.toString().padLeft(2, '0');
+    String minute = timestamp.minute.toString().padLeft(2, '0');
+    String second = timestamp.second.toString().padLeft(2, '0');
     return '$year-$month-$day $hour:$minute:$second';
   }
 
@@ -153,13 +141,9 @@ class ViewTransactionScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        _buildWaybillDetailsWidget(
                           transaction['waybill_details'] ??
                               'Waybill information extracted from scan',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.black54,
-                          ),
                         ),
                       ],
                     ),
@@ -200,22 +184,22 @@ class ViewTransactionScreen extends StatelessWidget {
                       children: [
                         _buildTimelineRow(
                           'Step 1 - Recipient Details Input:',
-                          '${_extractTime(1)}',
+                          _extractTime(1),
                         ),
                         const SizedBox(height: 6),
                         _buildTimelineRow(
                           'Step 2 - QR Code Scan & Door Unlock:',
-                          '${_extractTime(2)}',
+                          _extractTime(2),
                         ),
                         const SizedBox(height: 6),
                         _buildTimelineRow(
                           'Step 3 - Package Waybill Scan:',
-                          '${_extractTime(3)}',
+                          _extractTime(3),
                         ),
                         const SizedBox(height: 6),
                         _buildTimelineRow(
                           'Step 4 - Live Verification & Lock:',
-                          '${_extractTime(4)}',
+                          _extractTime(4),
                         ),
                         const SizedBox(height: 6),
                         _buildTimelineRow(
@@ -429,5 +413,94 @@ class ViewTransactionScreen extends StatelessWidget {
     }
 
     return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildWaybillDetailsWidget(String waybillDetails) {
+    // Parse the waybill details string to extract structured information
+    final Map<String, String> details = _parseWaybillDetails(waybillDetails);
+
+    if (details.isEmpty) {
+      return Text(
+        waybillDetails,
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'SCANNED WAYBILL DETAILS',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...details.entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Text(
+                      '${entry.key}:',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, String> _parseWaybillDetails(String waybillDetails) {
+    final Map<String, String> details = {};
+
+    // Try to parse structured data (from TextRecognitionService format)
+    final lines = waybillDetails.split('\n');
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+
+      // Match patterns like "Order ID: 250127XXXXXX"
+      if (line.contains(':')) {
+        final parts = line.split(':');
+        if (parts.length >= 2) {
+          final key = parts[0].trim();
+          final value = parts.sublist(1).join(':').trim();
+          details[key] = value;
+        }
+      }
+    }
+
+    return details;
   }
 }
