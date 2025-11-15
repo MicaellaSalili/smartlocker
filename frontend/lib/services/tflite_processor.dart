@@ -74,7 +74,7 @@ class TFLiteProcessor {
       final String waybillId = result['waybillId'] ?? '[EMPTY]';
 
       print('🔵 Final waybillId after processing: $waybillId');
-      
+
       if (waybillId == '[EMPTY]' || waybillId == '[NO_TEXT_DETECTED]') {
         print('⚠️ WARNING: ML Kit did not detect any text!');
         print('   Check: lighting, focus, text visibility, camera permissions');
@@ -150,7 +150,8 @@ class TFLiteProcessor {
       print('Stack trace: ${StackTrace.current}');
       return {
         'waybillId': '[ERROR: $e]',
-        'waybillDetails': 'Error extracting text: $e\n\nPlease try again with better lighting and ensure the waybill is clearly visible.',
+        'waybillDetails':
+            'Error extracting text: $e\n\nPlease try again with better lighting and ensure the waybill is clearly visible.',
       };
     }
   }

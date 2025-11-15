@@ -76,12 +76,12 @@ class _TextRecognitionScreenState extends State<TextRecognitionScreen> {
     try {
       // Capture image
       final XFile image = await _cameraController!.takePicture();
-      
+
       // Use the text recognition service for consistent results
       final textRecognitionService = TextRecognitionService();
       final result = await textRecognitionService.processImageFile(image);
       textRecognitionService.dispose();
-      
+
       // Debug: Print what was actually recognized
       print('\n======= OCR DEBUG =======');
       print('Full Text Recognized:');
@@ -98,26 +98,31 @@ class _TextRecognitionScreenState extends State<TextRecognitionScreen> {
 
       // Format J&T Express data
       final StringBuffer displayBuffer = StringBuffer();
-      
-      if (result['orderId'] != null && result['orderId'].toString().isNotEmpty) {
+
+      if (result['orderId'] != null &&
+          result['orderId'].toString().isNotEmpty) {
         displayBuffer.writeln('📋 Order ID: ${result['orderId']}');
       }
-      if (result['trackingNumber'] != null && result['trackingNumber'].toString().isNotEmpty) {
+      if (result['trackingNumber'] != null &&
+          result['trackingNumber'].toString().isNotEmpty) {
         displayBuffer.writeln('🔢 Tracking: ${result['trackingNumber']}');
       }
-      if (result['barcode'] != null && result['barcode'].toString().isNotEmpty) {
+      if (result['barcode'] != null &&
+          result['barcode'].toString().isNotEmpty) {
         displayBuffer.writeln('📊 Barcode: ${result['barcode']}');
       }
-      if (result['buyerName'] != null && result['buyerName'].toString().isNotEmpty) {
+      if (result['buyerName'] != null &&
+          result['buyerName'].toString().isNotEmpty) {
         displayBuffer.writeln('👤 Buyer: ${result['buyerName']}');
       }
-      if (result['productQuantity'] != null && result['productQuantity'].toString().isNotEmpty) {
+      if (result['productQuantity'] != null &&
+          result['productQuantity'].toString().isNotEmpty) {
         displayBuffer.writeln('📦 Quantity: ${result['productQuantity']}');
       }
       if (result['weight'] != null && result['weight'].toString().isNotEmpty) {
         displayBuffer.writeln('⚖️ Weight: ${result['weight']}');
       }
-      
+
       displayBuffer.writeln('\n--- Full Text ---');
       displayBuffer.writeln(result['fullText'] ?? '');
 
@@ -149,13 +154,13 @@ class _TextRecognitionScreenState extends State<TextRecognitionScreen> {
   }
 
   void _copyToClipboard() {
-    if (_recognizedText.isNotEmpty && 
+    if (_recognizedText.isNotEmpty &&
         !_recognizedText.contains('Processing') &&
         !_recognizedText.contains('No text detected')) {
       // You can use the clipboard package or show a dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Text copied to clipboard')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Text copied to clipboard')));
     }
   }
 
@@ -180,11 +185,9 @@ class _TextRecognitionScreenState extends State<TextRecognitionScreen> {
                     ),
                     child: CameraPreview(_cameraController!),
                   )
-                : const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                : const Center(child: CircularProgressIndicator()),
           ),
-          
+
           // Recognized Text Display
           Expanded(
             flex: 2,
@@ -211,7 +214,7 @@ class _TextRecognitionScreenState extends State<TextRecognitionScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (_recognizedText.isNotEmpty && 
+                      if (_recognizedText.isNotEmpty &&
                           !_recognizedText.contains('Processing') &&
                           !_recognizedText.contains('No text detected'))
                         IconButton(

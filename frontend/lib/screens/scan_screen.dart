@@ -107,8 +107,8 @@ class _ScanScreenState extends State<ScanScreen> {
         });
 
         // Show warning if no text was detected
-        if (waybillId.contains('[NO_TEXT_DETECTED]') || 
-            waybillId.contains('[ERROR') || 
+        if (waybillId.contains('[NO_TEXT_DETECTED]') ||
+            waybillId.contains('[ERROR') ||
             waybillId.contains('[EMPTY]')) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

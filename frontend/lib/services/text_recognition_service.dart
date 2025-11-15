@@ -70,13 +70,15 @@ class TextRecognitionService {
 
     // Clean up text but preserve content
     final cleanedText = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    
+
     if (cleanedText.isEmpty) {
       print('❌ WARNING: No text detected by Google ML Kit!');
-      print('   Possible causes: poor lighting, blurry image, no text in frame');
+      print(
+        '   Possible causes: poor lighting, blurry image, no text in frame',
+      );
       return '[NO_TEXT_DETECTED]';
     }
-    
+
     print('✅ Using scanned text as waybill ID: $cleanedText');
     return cleanedText;
   }

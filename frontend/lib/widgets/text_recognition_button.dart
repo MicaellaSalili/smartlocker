@@ -18,9 +18,11 @@ class TextRecognitionButton extends StatelessWidget {
     return Card(
       elevation: 2,
       child: InkWell(
-        onTap: onPressed ?? () {
-          Navigator.pushNamed(context, '/text_recognition');
-        },
+        onTap:
+            onPressed ??
+            () {
+              Navigator.pushNamed(context, '/text_recognition');
+            },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
@@ -45,10 +47,7 @@ class TextRecognitionButton extends StatelessWidget {
                     const SizedBox(height: 4),
                     const Text(
                       'Scan text from parcel labels',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -63,7 +62,7 @@ class TextRecognitionButton extends StatelessWidget {
 }
 
 /// Example: Add this to your settings or home screen
-/// 
+///
 /// Usage:
 /// ```dart
 /// TextRecognitionButton(
