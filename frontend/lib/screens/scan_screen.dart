@@ -24,7 +24,8 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _isProcessing = false;
   String _scannedWaybillId = '';
   String _scannedText = '';
-  int _scanStep = 0; // 0: initial, 1: waybill id, 2: waybill details, 3: package, 4: success, 5: error
+  int _scanStep =
+      0; // 0: initial, 1: waybill id, 2: waybill details, 3: package, 4: success, 5: error
   Uint8List? _imageBytes;
   String? _waybillId;
   String? _waybillDetails;
@@ -111,13 +112,15 @@ class _ScanScreenState extends State<ScanScreen> {
         // Generate dummy embedding for testing when model is missing
         embedding = List<double>.filled(128, 0.0);
       }
-      
+
       final transactionManager = Provider.of<TransactionManager>(
         context,
         listen: false,
       );
       if (transactionManager.auditData == null) {
-        debugPrint('⚠️ Warning: No recipient information found. Using test data.');
+        debugPrint(
+          '⚠️ Warning: No recipient information found. Using test data.',
+        );
         // For testing, set dummy recipient data
         transactionManager.updateAuditData(
           firstName: 'Test',
@@ -174,8 +177,8 @@ class _ScanScreenState extends State<ScanScreen> {
                       _scanStep == 4
                           ? 'Scan Successful'
                           : _scanStep == 5
-                              ? 'Scan Failed'
-                              : 'Scan Package',
+                          ? 'Scan Failed'
+                          : 'Scan Package',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
@@ -184,9 +187,7 @@ class _ScanScreenState extends State<ScanScreen> {
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: _buildStepContent(),
-                  ),
+                  Expanded(child: _buildStepContent()),
                 ],
               ),
             ),
@@ -241,7 +242,11 @@ class _ScanScreenState extends State<ScanScreen> {
                   Text(
                     stepData[0]['title']!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF757575), fontSize: 14, fontWeight: FontWeight.w400),
+                    style: const TextStyle(
+                      color: Color(0xFF757575),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Padding(
@@ -333,14 +338,22 @@ class _ScanScreenState extends State<ScanScreen> {
                   Text(
                     step['title']!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF212121), fontSize: 15, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: Color(0xFF212121),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   if (step['desc'] != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       step['desc']!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w400),
+                      style: const TextStyle(
+                        color: Color(0xFF757575),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                   // Display extracted text for step 1 and 2
@@ -359,7 +372,10 @@ class _ScanScreenState extends State<ScanScreen> {
                         children: [
                           const Text(
                             'Extracted Waybill ID:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -387,7 +403,10 @@ class _ScanScreenState extends State<ScanScreen> {
                         children: [
                           const Text(
                             'Extracted Details:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -405,7 +424,11 @@ class _ScanScreenState extends State<ScanScreen> {
                     Text(
                       step['progress']!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w400),
+                      style: const TextStyle(
+                        color: Color(0xFF757575),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -515,7 +538,10 @@ class _ScanScreenState extends State<ScanScreen> {
                         if (_waybillId != null) ...[
                           const Text(
                             'Waybill ID:',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
                           ),
                           Text(
                             _waybillId!,
@@ -528,7 +554,10 @@ class _ScanScreenState extends State<ScanScreen> {
                         if (_waybillDetails != null) ...[
                           const Text(
                             'Details:',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
                           ),
                           Text(
                             _waybillDetails!,
@@ -619,13 +648,19 @@ class _ScanScreenState extends State<ScanScreen> {
                       children: [
                         const Text(
                           'Extracted Text:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         if (_waybillId != null) ...[
                           const Text(
                             'Waybill ID:',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
                           ),
                           Text(
                             _waybillId!,
@@ -636,7 +671,10 @@ class _ScanScreenState extends State<ScanScreen> {
                         if (_waybillDetails != null) ...[
                           const Text(
                             'Details:',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
                           ),
                           Text(
                             _waybillDetails!,
