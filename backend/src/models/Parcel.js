@@ -21,13 +21,13 @@ const parcelSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  waybill_id: {
+  order_id: {
     type: String,
     required: true,
     unique: true,
     trim: true
   },
-  waybill_details: {
+  order_details: {
     type: String,
     required: true
   },

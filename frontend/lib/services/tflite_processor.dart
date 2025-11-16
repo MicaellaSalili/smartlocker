@@ -88,7 +88,7 @@ class TFLiteProcessor {
 
       // Format J&T Express specific details
       final StringBuffer detailsBuffer = StringBuffer();
-      detailsBuffer.writeln('=== J&T EXPRESS WAYBILL ===');
+      detailsBuffer.writeln('=== Scanned WAYBILL ===');
 
       if (result['orderId'] != null &&
           result['orderId'].toString().isNotEmpty) {
