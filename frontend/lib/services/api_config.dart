@@ -13,7 +13,7 @@ class ApiConfig {
     if (Platform.isAndroid) {
       // Android physical device: Using actual laptop Wi-Fi IP
       // Use 'http://10.0.2.2:$port' for emulator
-      return 'http://192.168.0.198:$port';
+      return 'http://10.157.129.68:$port';
     }
 
     if (Platform.isIOS) {
@@ -23,6 +23,7 @@ class ApiConfig {
     }
 
     // Desktop platforms (Windows/macOS/Linux)
-    return 'http://192.168.0.199:$port';
+    return 'http://100.79.235.62:$port';
+    // return 'http://192.168.0.199:$port';
   }
 }

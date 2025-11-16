@@ -167,6 +167,21 @@ class TransactionManager extends ChangeNotifier {
     _waybillDetails = waybillDetails;
     _embedding = embedding;
 
+    // 🔍 PRINT STORED DATA IN TRANSACTION MANAGER
+    debugPrint('\n${'=' * 60}');
+    debugPrint('📦 TRANSACTION MANAGER - STORED DATA AFTER TEXT SCAN:');
+    debugPrint('=' * 60);
+    debugPrint('✅ Recipient: ${_auditData?.firstName} ${_auditData?.lastName}');
+    debugPrint('✅ Phone: ${_auditData?.phoneNumber}');
+    debugPrint('✅ Locker ID: $_lockerId');
+    debugPrint('✅ Waybill ID: $_waybillId');
+    debugPrint('✅ Waybill Details (first 200 chars):');
+    debugPrint(
+      '   ${_waybillDetails?.substring(0, _waybillDetails!.length > 200 ? 200 : _waybillDetails!.length)}',
+    );
+    debugPrint('✅ Embedding vector length: ${_embedding?.length}');
+    debugPrint('=' * 60 + '\n');
+
     // Validate all required data is present
     if (!isDataComplete()) {
       debugPrint('Error: Incomplete transaction data. Missing:');

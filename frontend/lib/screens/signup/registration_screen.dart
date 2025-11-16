@@ -139,8 +139,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                 )
                                 .toList(),
                             onChanged: (val) {
-                              if (val != null)
+                              if (val != null) {
                                 setState(() => _selectedDial = val);
+                              }
                             },
                           ),
                         ),
