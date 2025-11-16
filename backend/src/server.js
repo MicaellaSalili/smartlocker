@@ -62,6 +62,15 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', require('./routes/auth'));
 // POST /api/parcels/finalize - Finalize transaction by waybill_id
 app.post('/api/parcels/finalize', parcelController.finalizeTransaction);
+// POST /api/transaction/:id/finalize - Finalize transaction by ID
+app.post('/api/transaction/:id/finalize', parcelController.finalizeTransactionById);
+
+// GET /api/transaction/:id/reference - Returns embedding, waybillId, waybillDetails
+app.get('/api/transaction/:id/reference', parcelController.getReferenceData);
+// DELETE /api/transaction/:id - Delete transaction by ID
+app.delete('/api/transaction/:id', parcelController.deleteTransaction);
+// POST /api/locker/:id/lock - Lock the locker via MQTT
+app.post('/api/locker/:id/lock', parcelController.lockLocker);
 
 // GET /api/lockers - Get all lockers with their status
 app.get('/api/lockers', async (req, res) => {
@@ -377,6 +386,9 @@ app.put('/api/locker/:lockerId/lock', async (req, res) => {
   }
 });
 
+// POST /api/locker/:id/lock - Lock the locker door (called after courier closes door)
+app.post('/api/locker/:id/lock', parcelController.lockLocker);
+
 // GET /api/locker/available - Get next available locker and generate token
 app.get('/api/locker/available', async (req, res) => {
   try {
@@ -622,6 +634,9 @@ app.delete('/api/parcel/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete transaction', details: error.message });
   }
 });
+
+// DELETE /api/transaction/:id - Delete transaction by ID
+app.delete('/api/transaction/:id', parcelController.deleteTransaction);
 
 // MongoDB connection using Atlas URI from .env
 const MONGODB_URI = process.env.MONGODB_URI;
