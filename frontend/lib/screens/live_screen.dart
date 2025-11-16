@@ -10,14 +10,6 @@ import 'view_transaction_screen.dart';
 import 'home_screen.dart';
 import 'input_details_screen.dart';
 
-int _currentStep =
-    0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
-String _stepStatus = '';
-int _scanProgress = 1;
-int _scanTotal = 5;
-bool _showDoorCountdown = false;
-int _doorCountdown = 5;
-
 class LiveScreen extends StatefulWidget {
   const LiveScreen({super.key});
 
@@ -26,6 +18,12 @@ class LiveScreen extends StatefulWidget {
 }
 
 class _LiveScreenState extends State<LiveScreen> {
+  int _currentStep = 0;
+  String _stepStatus = '';
+  int _scanProgress = 1;
+  int _scanTotal = 5;
+  bool _showDoorCountdown = false;
+  int _doorCountdown = 5;
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
