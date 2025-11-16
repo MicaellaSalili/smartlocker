@@ -45,6 +45,9 @@ class _LiveScreenState extends State<LiveScreen> {
   static const double similarityThreshold = 0.85;
   static const double positionConfidenceThreshold = 0.80;
 
+  int _stepDelayMs = 1000; // 1 second per step
+  bool _stepAdvancing = false;
+
   @override
   void initState() {
     super.initState();
@@ -141,107 +144,18 @@ class _LiveScreenState extends State<LiveScreen> {
 
   /// Process a single camera frame for verification
   Future<void> _processFrame(CameraImage frame) async {
-    try {
-      // a) Call TFLiteProcessor.runLiveVerification
-      final liveData = await TFLiteProcessor.runLiveVerification(frame);
-
-      final List<double> liveEmbedding = List<double>.from(
-        liveData['liveEmbedding'],
-      );
-      final String liveWaybillDetails = liveData['liveWaybillDetails'];
-      final List<dynamic> boundingBoxes = liveData['boundingBoxes'];
-      final bool lockerDetected = liveData['lockerDetected'] as bool;
-
-      // b) Calculate Cosine Similarity between live and reference embeddings
-      final similarity = _calculateCosineSimilarity(
-        liveEmbedding,
-        _referenceEmbedding!,
-      );
-
-      // c) Full Match Check - ALL FIVE criteria must be true
-      final bool vectorMatch = similarity >= similarityThreshold;
-      final bool textMatch = _checkTextMatch(
-        liveWaybillDetails,
-        _referenceWaybillDetails ?? '',
-      );
-      final bool idMatch = _checkIdMatch(
-        liveWaybillDetails,
-        _referenceWaybillId ?? '',
-      );
-      final bool positionCheck = _checkPositionQuality(boundingBoxes);
-      final bool lockerFrameCheck = lockerDetected;
-
-      debugPrint(
-        'Verification scores - Similarity: ${similarity.toStringAsFixed(3)}, '
-        'Vector: $vectorMatch, Text: $textMatch, ID: $idMatch, Position: $positionCheck, Locker: $lockerFrameCheck',
-      );
-
-      // Check if all 5 conditions are met
-      final bool allChecksPassed =
-          vectorMatch &&
-          textMatch &&
-          idMatch &&
-          positionCheck &&
-          lockerFrameCheck;
-
-      // Handle verification during countdown - detect mismatch
-      if (_isVerificationStarted && !allChecksPassed) {
-        // Mismatch detected during countdown - parcel was removed
-        debugPrint(
-          'Mismatch detected during countdown! Resetting transaction.',
-        );
-        await _resetTransaction();
-        return;
-      }
-
-      // Normal verification flow
-      if (allChecksPassed) {
-        _consecutiveSuccessFrames++;
-
-        if (mounted) {
-          setState(() {
-            _verificationStatus =
-                'Match detected! ($_consecutiveSuccessFrames/$requiredConsecutiveFrames)';
-          });
+    // Only advance step if not already advancing
+    if (mounted && !_stepAdvancing) {
+      _stepAdvancing = true;
+      setState(() {
+        if (_currentStep < 7) {
+          _currentStep++;
+        } else if (_currentStep == 7 && !_showDoorCountdown) {
+          _startCloseDoorCountdown();
         }
-
-        // Advance step after required consecutive frames
-        if (_consecutiveSuccessFrames >= requiredConsecutiveFrames && !_isVerificationStarted) {
-          if (mounted) {
-            setState(() {
-              if (_currentStep < 7) {
-                _currentStep++;
-                _consecutiveSuccessFrames = 0;
-              }
-              // Only start countdown at last step
-              if (_currentStep == 7) {
-                _startCloseDoorCountdown();
-              }
-            });
-          }
-        }
-      } else {
-        // Reset counter if any check fails (only if countdown hasn't started)
-        if (!_isVerificationStarted) {
-          _consecutiveSuccessFrames = 0;
-
-          if (mounted) {
-            setState(() {
-              String status =
-                  'Verifying... Similarity: ${(similarity * 100).toStringAsFixed(1)}%';
-              if (!lockerFrameCheck) {
-                status = 'Position package in locker frame';
-              }
-              _verificationStatus = status;
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error processing frame: $e');
-      if (!_isVerificationStarted) {
-        _consecutiveSuccessFrames = 0;
-      }
+      });
+      await Future.delayed(Duration(milliseconds: _stepDelayMs));
+      _stepAdvancing = false;
     }
   }
 

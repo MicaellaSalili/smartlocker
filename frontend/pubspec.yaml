@@ -9,13 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  image_picker: ^1.0.4
+  image_picker: ^1.0.7
   http: ^1.2.2
   provider: ^6.1.5+1
-  camera: ^0.10.5+9
+  camera: ^0.10.6
   mobile_scanner: ^3.5.5
-  tflite_flutter: ^0.10.4
-  google_mlkit_text_recognition: ^0.11.0
+  tflite_flutter: ^0.12.1
+  image: ^4.1.7
+  google_mlkit_text_recognition: ^0.12.0
   qr_flutter: ^4.1.0
 
 dev_dependencies:
@@ -25,8 +26,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
   assets:
     - assets/logo.png
     - assets/guide.png
     - assets/steps/
+    - assets/models/
