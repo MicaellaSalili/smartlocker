@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import '../services/tflite_processor.dart';
 import '../services/transaction_manager.dart';
+import '../services/text_recognition_service.dart';
 import 'live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -18,24 +19,39 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
+  // Step tracking: 0=guide, 1=barcode, 2=text, 3=package, 4=success
+  int _currentStep = 0;
+
+  // Mobile scanner for barcode/QR
+  MobileScannerController? _barcodeController;
+
+  // Camera for text and package capture
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
+
+  // Processing flags
   bool _isProcessing = false;
-  int _scanStep = 0; // 0: initial, 1: waybill id, 2: waybill details, 3: package, 4: success, 5: error
-  Uint8List? _imageBytes;
-  String? _waybillId;
-  String? _waybillDetails;
+  bool _barcodeDetected = false;
+
+  // Captured data
+  String? _scannedBarcode;
+  String? _extractedText;
+  Uint8List? _packageImage;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
-    // Show pre-scan guide once when the screen opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPreScanGuide(context);
-    });
+    _initializeBarcodeScanner();
+  }
+
+  void _initializeBarcodeScanner() {
+    _barcodeController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
   }
 
   Future<void> _initializeCamera() async {
@@ -44,7 +60,7 @@ class _ScanScreenState extends State<ScanScreen> {
       if (_cameras != null && _cameras!.isNotEmpty) {
         _cameraController = CameraController(
           _cameras![0],
-          ResolutionPreset.max, // Set to max for best quality
+          ResolutionPreset.high,
           enableAudio: false,
         );
         await _cameraController!.initialize();
@@ -61,131 +77,124 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   void dispose() {
+    _barcodeController?.dispose();
     _cameraController?.dispose();
     super.dispose();
   }
 
-  Future<void> _captureAndLog() async {
-    if (_isProcessing ||
-        _cameraController == null ||
-        !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      // Step 1: Take the photo
-      final XFile image = await _cameraController!.takePicture();
-      _imageBytes = await File(image.path).readAsBytes();
-
-      // Step 1: Extract barcode ID
-      final ocrResult = await TFLiteProcessor.extractBarcodeIdAndOcr(image);
-      _waybillId = ocrResult['waybillId'] ?? '';
-      setState(() {
-        _scanStep = 1;
-      });
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Step 2: Extract waybill details
-      _waybillDetails = ocrResult['waybillDetails'] ?? '';
-      setState(() {
-        _scanStep = 2;
-      });
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Step 3: Generate embedding and log transaction (package)
-      List<double> embedding = [];
-      try {
-        embedding = await TFLiteProcessor.generateEmbedding(_imageBytes!);
-        debugPrint('✅ Embedding generated successfully');
-      } catch (embeddingError) {
-        debugPrint('⚠️ Embedding generation failed: $embeddingError');
-        debugPrint('   Continuing with empty embedding (for testing)');
-        // Generate dummy embedding for testing when model is missing
-        embedding = List<double>.filled(128, 0.0);
-      }
-
-      final transactionManager = Provider.of<TransactionManager>(
-        context,
-        listen: false,
-      );
-      if (transactionManager.auditData == null) {
-        debugPrint(
-          '⚠️ Warning: No recipient information found. Using test data.',
-        );
-        // For testing, set dummy recipient data
-        transactionManager.updateAuditData(
-          firstName: 'Test',
-          lastName: 'User',
-          phoneNumber: '0000000000',
-        );
-      }
-      await transactionManager.logTransactionData(
-        lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
-        waybillId: _waybillId ?? '',
-        waybillDetails: _waybillDetails ?? '',
-        embedding: embedding,
-      );
-      setState(() {
-        _scanStep = 3;
-      });
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Step 4: Success
-      setState(() {
-        _scanStep = 4;
-      });
-    } catch (e) {
-      debugPrint('❌ Error capturing and logging: $e');
-      debugPrint('Stack trace: ${StackTrace.current}');
-      setState(() {
-        _errorMessage = e.toString();
-        _scanStep = 5;
-      });
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Stack(
+  // Step 0: Show guide
+  Widget _buildGuideStep() {
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        child: Column(
           children: [
-            // Camera/Image preview fills screen below header
-            Positioned.fill(
-              top: 0,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    width: double.infinity,
-                    color: const Color(0xFF4285F4),
-                    child: Text(
-                      _scanStep == 4
-                          ? 'Scan Successful'
-                          : _scanStep == 5
-                              ? 'Scan Failed'
-                              : 'Scan Package',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              color: const Color(0xFF4285F4),
+              child: const Text(
+                'Scan Package - 3 Steps',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.qr_code_scanner,
+                      size: 100,
+                      color: Color(0xFF4285F4),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Step indicators
+                    _buildStepIndicator(
+                      1,
+                      'Scan Barcode/QR',
+                      'Position barcode within frame',
+                      true,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStepIndicator(
+                      2,
+                      'Scan Waybill Text',
+                      'Capture waybill details',
+                      false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStepIndicator(
+                      3,
+                      'Capture Package',
+                      'Take photo of entire package',
+                      false,
+                    ),
+
+                    const Spacer(),
+
+                    // Start button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _currentStep = 1; // Start with barcode scan
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4285F4),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Start Scanning',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: _buildStepContent(),
-                  ),
-                ],
+
+                    const SizedBox(height: 12),
+
+                    // Cancel button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: const BorderSide(color: Colors.grey),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -194,630 +203,857 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Widget _buildStepContent() {
-    // Step data for multi-step flow
-    final List<Map<String, String>> stepData = [
-      {
-        'title': 'Position the waybill QR/barcode. Ensure the view is clear.',
-        'button': 'Capture & Log Waybill ID',
-      },
-      {
-        'title': 'Scan to Log the Waybill ID',
-        'desc': 'Collected Data: Waybill ID',
-        'progress': '1/3',
-      },
-      {
-        'title': 'Scan to Log the Waybill Details',
-        'desc': 'Collected Data: Waybill Text Details',
-        'progress': '2/3',
-      },
-      {
-        'title': 'Scan to Log the Package',
-        'desc': 'Collected Data: Package Image & Embedding',
-        'progress': '3/3',
-      },
-    ];
-
-    if (_scanStep == 0) {
-      return Stack(
+  Widget _buildStepIndicator(
+    int stepNumber,
+    String title,
+    String description,
+    bool isActive,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFFE3F2FD) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive ? const Color(0xFF4285F4) : Colors.grey.shade300,
+          width: 2,
+        ),
+      ),
+      child: Row(
         children: [
-          Positioned.fill(
-            child: _isCameraInitialized && _cameraController != null
-                ? CameraPreview(_cameraController!)
-                : const Center(child: CircularProgressIndicator()),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.only(bottom: 32, top: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    stepData[0]['title']!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF757575),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isProcessing ? null : _captureAndLog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4285F4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: _isProcessing
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                stepData[0]['button']!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFBDBDBD)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: Color(0xFF757575),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+          CircleAvatar(
+            backgroundColor: isActive ? const Color(0xFF4285F4) : Colors.grey,
+            radius: 20,
+            child: Text(
+              '$stepNumber',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
           ),
-        ],
-      );
-    }
-
-    if (_scanStep >= 1 && _scanStep <= 3) {
-      final step = stepData[_scanStep];
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: _imageBytes != null
-                ? Image.memory(_imageBytes!, fit: BoxFit.cover)
-                : const Center(child: CircularProgressIndicator()),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: isActive ? const Color(0xFF4285F4) : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.only(bottom: 32, top: 12),
+        ],
+      ),
+    );
+  }
+
+  // Step 1: Barcode/QR scanner
+  Widget _buildBarcodeStep() {
+    return Stack(
+      children: [
+        // Barcode scanner
+        MobileScanner(
+          controller: _barcodeController,
+          onDetect: (capture) {
+            if (_barcodeDetected || _isProcessing) return;
+
+            final List<Barcode> barcodes = capture.barcodes;
+            if (barcodes.isEmpty) return;
+
+            final barcode = barcodes.first;
+            if (barcode.rawValue == null) return;
+
+            setState(() {
+              _barcodeDetected = true;
+              _isProcessing = true;
+              _scannedBarcode = barcode.rawValue;
+            });
+
+            debugPrint(
+              '============================================================',
+            );
+            debugPrint('📦 STEP 1 - BARCODE SCANNED:');
+            debugPrint(
+              '============================================================',
+            );
+            debugPrint('✅ Barcode: $_scannedBarcode');
+            debugPrint('✅ Format: ${barcode.format.name}');
+            debugPrint(
+              '============================================================',
+            );
+
+            // Auto advance after 1 second
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) {
+                _barcodeController?.stop();
+                _initializeCamera(); // Prepare camera for next steps
+                setState(() {
+                  _currentStep = 2;
+                  _isProcessing = false;
+                });
+              }
+            });
+          },
+        ),
+
+        // Scanning frame overlay
+        Center(
+          child: Container(
+            width: 300,
+            height: 300,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _barcodeDetected ? Colors.green : Colors.white,
+                width: 3,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        // Overlay with instructions
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.black54,
+            child: SafeArea(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    step['title']!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF212121),
-                      fontSize: 15,
+                  const Text(
+                    'Step 1 of 3: Scan Barcode/QR',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (step['desc'] != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      step['desc']!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF757575),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                  // Display extracted text for step 1 and 2
-                  if (_scanStep == 1 && _waybillId != null) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Position the barcode or QR code within the frame',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  if (_barcodeDetected) ...[
                     const SizedBox(height: 8),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        border: Border.all(color: Colors.blue),
+                        color: Colors.green,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'Extracted Waybill ID:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                            size: 20,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(width: 8),
                           Text(
-                            _waybillId!,
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
+                            'Barcode Detected: $_scannedBarcode',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  if (_scanStep == 2 && _waybillDetails != null) ...[
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Cancel button
+        Positioned(
+          bottom: 32,
+          left: 32,
+          right: 32,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: Colors.white,
+              side: const BorderSide(color: Colors.grey),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 2: Text extraction from waybill
+  Widget _buildTextExtractionStep() {
+    return Stack(
+      children: [
+        // Camera preview
+        _isCameraInitialized && _cameraController != null
+            ? CameraPreview(_cameraController!)
+            : const Center(child: CircularProgressIndicator()),
+
+        // Scanning frame overlay
+        Center(
+          child: Container(
+            width: 320,
+            height: 400,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white, width: 3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        // Header
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.black54,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  const Text(
+                    'Step 2 of 3: Scan Waybill Text',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Position the waybill to capture Order ID, Buyer Name, and other details',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  if (_scannedBarcode != null) ...[
                     const SizedBox(height: 8),
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        border: Border.all(color: Colors.blue),
-                        borderRadius: BorderRadius.circular(8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Extracted Details:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _waybillDetails!,
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 5,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '✓ Barcode: $_scannedBarcode',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
-                  if (step['progress'] != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      step['progress']!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF757575),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      width: double.infinity,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Color(0xFFB9F6CA),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Color(0xFF00C853), width: 2),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Processing 100%',
-                          style: TextStyle(
-                            color: Color(0xFF00C853),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _scanStep = 0;
-                            _isProcessing = false;
-                            _imageBytes = null;
-                            _waybillId = null;
-                            _waybillDetails = null;
-                            _errorMessage = null;
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFBDBDBD)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: Color(0xFF757575),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
-        ],
-      );
-    } else if (_scanStep == 4) {
-      // Step 4: Scan successful
-      return Column(
-        children: [
-          const SizedBox(height: 32),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 32),
+        ),
+
+        // Bottom buttons
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              border: Border.all(color: Colors.green),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            color: Colors.white,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle, size: 64, color: Colors.green),
-                const SizedBox(height: 8),
-                const Text(
-                  'Scan Successful',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'All data collected successfully:',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                // Display extracted text
-                if (_waybillId != null || _waybillDetails != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      border: Border.all(color: Colors.blue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_waybillId != null) ...[
-                          const Text(
-                            'Waybill ID:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            _waybillId!,
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (_waybillDetails != null) ...[
-                          const Text(
-                            'Details:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            _waybillDetails!,
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 6,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LiveScreen()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4285F4),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Proceed to Live Detection',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      );
-    } else if (_scanStep == 5) {
-      // Step 5: Scan failed
-      return Column(
-        children: [
-          const SizedBox(height: 32),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              border: Border.all(color: Colors.red),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.error, size: 64, color: Colors.red),
-                const SizedBox(height: 8),
-                const Text(
-                  'Package Scan Failed',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _errorMessage ?? 'Unknown error',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Make sure to clearly show:\n1. Parcel Image and Embedding\n2. Waybill ID\n3. Waybill Details',
-                  textAlign: TextAlign.center,
-                ),
-                // Display extracted text even if scan failed
-                if (_waybillId != null || _waybillDetails != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      border: Border.all(color: Colors.blue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Extracted Text:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_waybillId != null) ...[
-                          const Text(
-                            'Waybill ID:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            _waybillId!,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (_waybillDetails != null) ...[
-                          const Text(
-                            'Details:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            _waybillDetails!,
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 8,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              children: [
-                Expanded(
+                SizedBox(
+                  width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _scanStep = 0;
-                        _errorMessage = null;
-                      });
-                    },
+                    onPressed: _isProcessing ? null : _captureWaybillText,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4285F4),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      minimumSize: const Size(double.infinity, 56),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Try Again',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Capture Waybill Text',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      minimumSize: const Size(double.infinity, 56),
                       side: const BorderSide(color: Colors.grey),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: const Text(
-                      'Contact Support',
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      );
-    } else {
-      return const SizedBox.shrink();
-    }
-  }
-
-  void _showPreScanGuide(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: SizedBox(
-                    height: 220,
-                    width: 220,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/guide.png',
-                        fit: BoxFit.contain,
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  '1. Center the PACKAGE',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  '2. Ensure WAYBILL & QR/BARCODE are FLAT & FACING FRONT',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  '3. Check for CLEAR, Bright LIGHTING',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4285F4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _captureWaybillText() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final XFile image = await _cameraController!.takePicture();
+
+      // Extract text using Google ML Kit
+      final textService = TextRecognitionService();
+      final ocrResult = await textService.processImageFile(image);
+
+      final extractedText = ocrResult['waybillDetails'] ?? '';
+
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('📦 STEP 2 - TEXT EXTRACTED:');
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('✅ Order ID: ${ocrResult['orderId']}');
+      debugPrint('✅ Buyer Name: ${ocrResult['buyerName']}');
+      debugPrint('✅ Tracking: ${ocrResult['trackingNumber']}');
+      debugPrint('✅ Full Details:\n$extractedText');
+      debugPrint(
+        '============================================================',
+      );
+
+      setState(() {
+        _extractedText = extractedText; // Store in setState for UI update
+        _currentStep = 3; // Move to package capture
+        _isProcessing = false;
+      });
+    } catch (e) {
+      debugPrint('❌ Error extracting text: $e');
+      setState(() {
+        _errorMessage = 'Failed to extract text: $e';
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // Step 3: Package image capture
+  Widget _buildPackageCaptureStep() {
+    return Stack(
+      children: [
+        // Camera preview
+        _isCameraInitialized && _cameraController != null
+            ? CameraPreview(_cameraController!)
+            : const Center(child: CircularProgressIndicator()),
+
+        // Scanning frame overlay
+        Center(
+          child: Container(
+            width: 340,
+            height: 340,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white, width: 3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+
+        // Header
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.black54,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  const Text(
+                    'Step 3 of 3: Capture Package',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Got it! Start Scanning'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Capture the entire package including waybill',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade700,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          '✓ Barcode',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade700,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          '✓ Text',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Bottom buttons
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            color: Colors.white,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing ? null : _capturePackageImage,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4285F4),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Capture Package Image',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    Navigator.of(context).maybePop();
-                  },
-                  child: const Text('Cancel'),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _capturePackageImage() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final XFile image = await _cameraController!.takePicture();
+      _packageImage = await File(image.path).readAsBytes();
+
+      // Generate embedding
+      final embedding = await TFLiteProcessor.generateEmbedding(_packageImage!);
+
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('📦 STEP 3 - PACKAGE CAPTURED:');
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('✅ Image size: ${_packageImage!.length} bytes');
+      debugPrint('✅ Embedding length: ${embedding.length}');
+      debugPrint(
+        '============================================================',
+      );
+
+      // Log transaction
+      final transactionManager = Provider.of<TransactionManager>(
+        context,
+        listen: false,
+      );
+
+      if (transactionManager.auditData == null) {
+        debugPrint('⚠️ No recipient info, using test data');
+        transactionManager.updateAuditData(
+          firstName: 'Test',
+          lastName: 'User',
+          phoneNumber: '0000000000',
         );
-      },
+      }
+
+      await transactionManager.logTransactionData(
+        lockerId: widget.lockerId ?? 'UNKNOWN_LOCKER',
+        waybillId: _scannedBarcode ?? 'NO_BARCODE',
+        waybillDetails: _extractedText ?? 'NO_TEXT',
+        embedding: embedding,
+      );
+
+      setState(() {
+        _currentStep = 4; // Show success
+        _isProcessing = false;
+      });
+    } catch (e) {
+      debugPrint('❌ Error capturing package: $e');
+      setState(() {
+        _errorMessage = 'Failed to capture package: $e';
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // Step 4: Success screen
+  Widget _buildSuccessStep() {
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              color: const Color(0xFF4285F4),
+              child: const Text(
+                'Scan Complete',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        border: Border.all(color: Colors.green, width: 2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            size: 80,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'All Steps Verified!',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSuccessItem(
+                            Icons.qr_code,
+                            'Barcode',
+                            _scannedBarcode ?? 'N/A',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSuccessItem(
+                            Icons.photo_camera,
+                            'Package Image',
+                            'Captured',
+                          ),
+                          const SizedBox(height: 16),
+                          // Full extracted text display
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: Colors.green.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.text_fields,
+                                      color: Colors.green,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Extracted Waybill Text:',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 150,
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: Text(
+                                      _extractedText ?? 'No text extracted',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade800,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Proceed button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LiveScreen(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4285F4),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Proceed to Live Detection',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Return home button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: const BorderSide(color: Colors.grey),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Return to Home',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessItem(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.green, size: 24),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.check, color: Colors.green, size: 20),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: _currentStep == 0
+          ? _buildGuideStep()
+          : _currentStep == 1
+          ? _buildBarcodeStep()
+          : _currentStep == 2
+          ? _buildTextExtractionStep()
+          : _currentStep == 3
+          ? _buildPackageCaptureStep()
+          : _buildSuccessStep(),
     );
   }
 }

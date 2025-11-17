@@ -342,8 +342,22 @@ class TextRecognitionService {
     print('📝 WaybillId will be: $waybillId');
     print('📝 Full text: $fullText');
 
+    // Format waybill details for display
+    String waybillDetails = '=== Scanned WAYBILL ===\n';
+    if (jtExpressData['orderId']?.isNotEmpty ?? false) {
+      waybillDetails += 'Order ID: ${jtExpressData['orderId']}\n';
+    }
+    if (jtExpressData['barcode']?.isNotEmpty ?? false) {
+      waybillDetails += 'Barcode: ${jtExpressData['barcode']}\n';
+    }
+    if (jtExpressData['buyerName']?.isNotEmpty ?? false) {
+      waybillDetails += 'Buyer: ${jtExpressData['buyerName']}\n';
+    }
+    waybillDetails += '\n$fullText';
+
     return {
       'fullText': fullText,
+      'waybillDetails': waybillDetails, // Formatted details for display
       'waybillId': waybillId, // USE RAW TEXT, not orderId pattern
       'barcodes': barcodes,
       'blocks': blocks,
