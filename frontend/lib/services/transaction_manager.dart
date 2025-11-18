@@ -252,6 +252,7 @@ class TransactionManager extends ChangeNotifier {
     required String waybillId,
     required String waybillDetails,
     required List<double> embedding,
+    String? imagePath, // Optional image file path
   }) async {
     _lockerId = lockerId;
     _waybillId = waybillId;
@@ -271,6 +272,9 @@ class TransactionManager extends ChangeNotifier {
       '   ${_waybillDetails?.substring(0, _waybillDetails!.length > 200 ? 200 : _waybillDetails!.length)}',
     );
     debugPrint('✅ Embedding vector length: ${_embedding?.length}');
+    if (imagePath != null) {
+      debugPrint('✅ Image saved at: $imagePath');
+    }
     debugPrint('=' * 60 + '\n');
 
     // Validate all required data is present
@@ -306,6 +310,9 @@ class TransactionManager extends ChangeNotifier {
       'waybill_id': waybillId,
       'waybill_details': waybillDetails,
       'image_embedding_vector': embedding,
+      
+      // Image path (optional)
+      if (imagePath != null) 'image_path': imagePath,
     };
 
     try {

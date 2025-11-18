@@ -9,6 +9,9 @@ import '../services/tflite_processor.dart';
 import 'view_transaction_screen.dart';
 import 'home_screen.dart';
 import 'input_details_screen.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:io';
+import 'dart:typed_data';
 
   int _currentStep = 0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
   String _stepStatus = '';
@@ -48,10 +51,37 @@ class _LiveScreenState extends State<LiveScreen> {
   int _stepDelayMs = 1000; // 1 second per step
   bool _stepAdvancing = false;
 
+  // Edge detection for Step 2
+  bool _showDetectionFrame = false;
+  Rect? _detectionBox;
+  bool _packageInFrame = false;
+  int _edgeDetectionFrames = 0;
+  static const int requiredEdgeFrames = 3;
+  
+  // Barcode verification for steps
+  MobileScannerController? _barcodeController;
+  bool _barcodeVerified = false;
+  int _barcodeMatchFrames = 0;
+
+  // Simple camera-based package tracking
+  bool _isDetecting = false;
+  Timer? _detectionTimer;
+  int _packageDetectionCount = 0;
+
   @override
   void initState() {
     super.initState();
     _initializeCamera();
+    _initializeBarcodeScanner();
+  }
+
+  void _initializeBarcodeScanner() {
+    _barcodeController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+      returnImage: false,
+    );
   }
 
   Future<void> _initializeCamera() async {
@@ -144,8 +174,29 @@ class _LiveScreenState extends State<LiveScreen> {
 
   /// Process a single camera frame for verification
   Future<void> _processFrame(CameraImage frame) async {
-    // Only advance step if not already advancing
-    if (mounted && !_stepAdvancing) {
+    // Step 2: Barcode verification (handled by mobile scanner)
+    // Step 3: Waybill text info (auto-advance to Step 4)
+    if (_currentStep == 3 && mounted && !_stepAdvancing) {
+      _stepAdvancing = true;
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() {
+          _currentStep = 4;
+        });
+        // Start object detection for Step 4
+        _startObjectDetection();
+      }
+      _stepAdvancing = false;
+      return;
+    }
+
+    // Step 4: Object detection for package (handled by timer)
+    if (_currentStep == 4) {
+      return; // Detection handled by _detectPackageInFrame timer
+    }
+
+    // Other steps: Auto-advance
+    if (mounted && !_stepAdvancing && _currentStep >= 5 && _currentStep < 7) {
       _stepAdvancing = true;
       setState(() {
         if (_currentStep < 7) {
@@ -157,6 +208,155 @@ class _LiveScreenState extends State<LiveScreen> {
       await Future.delayed(Duration(milliseconds: _stepDelayMs));
       _stepAdvancing = false;
     }
+  }
+
+  void _onBarcodeDetected(BarcodeCapture capture) {
+    if (_barcodeVerified || _currentStep != 2) return;
+
+    final List<Barcode> barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+
+    final barcode = barcodes.first;
+    if (barcode.rawValue == null) return;
+
+    final scannedBarcode = barcode.rawValue!;
+
+    // Compare with reference waybill ID
+    if (_referenceWaybillId != null && scannedBarcode == _referenceWaybillId) {
+      _barcodeMatchFrames++;
+
+      debugPrint('✅ Barcode match! ${_barcodeMatchFrames}/3');
+      debugPrint('   Scanned: $scannedBarcode');
+      debugPrint('   Reference: $_referenceWaybillId');
+
+      if (_barcodeMatchFrames >= 3) {
+        setState(() {
+          _barcodeVerified = true;
+        });
+
+        debugPrint('🎉 Barcode verified! Advancing to step 3');
+        
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _currentStep = 3;
+              _barcodeMatchFrames = 0;
+            });
+          }
+        });
+      }
+    } else {
+      _barcodeMatchFrames = 0;
+      
+      debugPrint('❌ Barcode mismatch!');
+      debugPrint('   Scanned: $scannedBarcode');
+      debugPrint('   Expected: $_referenceWaybillId');
+    }
+  }
+
+  void _startObjectDetection() {
+    if (_detectionTimer != null) return;
+    
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    setState(() {
+      _showDetectionFrame = true;
+      _detectionBox = Rect.fromCenter(
+        center: Offset(screenWidth / 2, screenHeight / 2),
+        width: screenWidth * 0.75,
+        height: screenHeight * 0.55,
+      );
+      _packageDetectionCount = 0;
+    });
+
+    // Start detection timer
+    _detectionTimer = Timer.periodic(const Duration(milliseconds: 800), (timer) async {
+      if (!mounted || _isDetecting || _currentStep != 4) {
+        return;
+      }
+      await _detectPackageInFrame();
+    });
+  }
+
+  void _stopObjectDetection() {
+    _detectionTimer?.cancel();
+    _detectionTimer = null;
+    setState(() {
+      _showDetectionFrame = false;
+      _packageInFrame = false;
+      _edgeDetectionFrames = 0;
+      _packageDetectionCount = 0;
+    });
+  }
+
+  Future<void> _detectPackageInFrame() async {
+    if (_isDetecting || _controller == null || !_controller!.value.isInitialized || _referenceEmbedding == null) {
+      return;
+    }
+
+    _isDetecting = true;
+
+    try {
+      // Take a picture from current frame
+      final image = await _controller!.takePicture();
+      final imageBytes = await File(image.path).readAsBytes();
+      
+      // Generate embedding for current frame
+      final currentEmbedding = await TFLiteProcessor.generateEmbedding(imageBytes);
+      
+      // Calculate similarity with reference
+      final similarity = _calculateCosineSimilarity(currentEmbedding, _referenceEmbedding!);
+      
+      debugPrint('📦 Package similarity: ${(similarity * 100).toStringAsFixed(1)}%');
+
+      if (similarity >= 0.85) {
+        _edgeDetectionFrames++;
+        _packageDetectionCount++;
+        debugPrint('✅ Package match! Frame ${_edgeDetectionFrames}/$requiredEdgeFrames');
+
+        if (_edgeDetectionFrames >= requiredEdgeFrames) {
+          setState(() {
+            _packageInFrame = true;
+          });
+          
+          debugPrint('🎉 Package verified! Advancing to step 5');
+          
+          _stopObjectDetection();
+          
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) {
+            setState(() {
+              _currentStep = 5;
+            });
+          }
+        } else {
+          setState(() {
+            _packageInFrame = true;
+          });
+        }
+      } else {
+        if (_edgeDetectionFrames > 0) {
+          _edgeDetectionFrames--;
+          debugPrint('⚠️ Package moved or changed. Count: $_edgeDetectionFrames');
+        }
+        setState(() {
+          _packageInFrame = false;
+        });
+      }
+
+      // Clean up temp file
+      await File(image.path).delete();
+    } catch (e) {
+      debugPrint('❌ Detection error: $e');
+    } finally {
+      _isDetecting = false;
+    }
+  }
+
+  Future<void> _detectPackageEdges(CameraImage frame) async {
+    // This method is deprecated - using object detection instead
+    // Kept for backward compatibility only
   }
 
   /// Start the close door countdown after successful verification
@@ -735,8 +935,11 @@ class _LiveScreenState extends State<LiveScreen> {
   @override
   void dispose() {
     _closeDoorTimer?.cancel();
+    _detectionTimer?.cancel();
+    _stopObjectDetection();
     _stopLiveVerification();
     _controller?.dispose();
+    _barcodeController?.dispose();
     super.dispose();
   }
 
@@ -1204,14 +1407,103 @@ class _LiveScreenState extends State<LiveScreen> {
               // Step card UI for steps 2-6
               return Stack(
                 children: [
-                  Positioned.fill(
-                    child: _isCameraInitialized && _controller != null
-                        ? CameraPreview(_controller!)
-                        : Container(
-                            color: Colors.black,
-                            child: const Center(child: CircularProgressIndicator()),
+                  // Step 2: Barcode Scanner
+                  if (_currentStep == 2 && _barcodeController != null)
+                    Positioned.fill(
+                      child: MobileScanner(
+                        controller: _barcodeController,
+                        onDetect: _onBarcodeDetected,
+                      ),
+                    ),
+                  // Steps 3-6: Camera Preview
+                  if (_currentStep >= 3 && _currentStep <= 6)
+                    Positioned.fill(
+                      child: _isCameraInitialized && _controller != null
+                          ? CameraPreview(_controller!)
+                          : Container(
+                              color: Colors.black,
+                              child: const Center(child: CircularProgressIndicator()),
+                            ),
+                    ),
+                  // Detection Frame Overlay for Step 4 (Package Detection)
+                  if (_currentStep == 4 && _showDetectionFrame && _detectionBox != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: PackageDetectionPainter(
+                          detectionBox: _detectionBox!,
+                          isDetected: _packageInFrame,
+                        ),
+                      ),
+                    ),
+                  // Barcode scanning frame for Step 2
+                  if (_currentStep == 2 && !_barcodeVerified)
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 300,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white, width: 3),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Scanning for Barcode...',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  backgroundColor: Colors.black54,
+                                ),
+                              ),
+                            ),
                           ),
-                  ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Position barcode within frame',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Success indicator for Step 2 when barcode verified
+                  if (_currentStep == 2 && _barcodeVerified)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white, size: 64),
+                            SizedBox(height: 8),
+                            Text(
+                              'Barcode Verified!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: 0,
                     left: 0,
@@ -1551,5 +1843,151 @@ class _ChecklistItem extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// Package Detection Painter for Step 2
+class PackageDetectionPainter extends CustomPainter {
+  final Rect detectionBox;
+  final bool isDetected;
+
+  PackageDetectionPainter({
+    required this.detectionBox,
+    required this.isDetected,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDetected ? Colors.green : Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.0;
+
+    final fillPaint = Paint()
+      ..color = isDetected ? Colors.green.withOpacity(0.1) : Colors.transparent
+      ..style = PaintingStyle.fill;
+
+    // Draw filled rectangle if detected
+    if (isDetected) {
+      canvas.drawRect(detectionBox, fillPaint);
+    }
+
+    // Draw border
+    canvas.drawRect(detectionBox, paint);
+
+    // Draw corner brackets
+    const double cornerLength = 40.0;
+    
+    // Top-left corner
+    canvas.drawLine(
+      detectionBox.topLeft,
+      detectionBox.topLeft + const Offset(cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      detectionBox.topLeft,
+      detectionBox.topLeft + const Offset(0, cornerLength),
+      paint,
+    );
+    
+    // Top-right corner
+    canvas.drawLine(
+      detectionBox.topRight,
+      detectionBox.topRight + const Offset(-cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      detectionBox.topRight,
+      detectionBox.topRight + const Offset(0, cornerLength),
+      paint,
+    );
+    
+    // Bottom-left corner
+    canvas.drawLine(
+      detectionBox.bottomLeft,
+      detectionBox.bottomLeft + const Offset(cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      detectionBox.bottomLeft,
+      detectionBox.bottomLeft + const Offset(0, -cornerLength),
+      paint,
+    );
+    
+    // Bottom-right corner
+    canvas.drawLine(
+      detectionBox.bottomRight,
+      detectionBox.bottomRight + const Offset(-cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      detectionBox.bottomRight,
+      detectionBox.bottomRight + const Offset(0, -cornerLength),
+      paint,
+    );
+
+    // Draw instruction text
+    if (!isDetected) {
+      final textPainter = TextPainter(
+        text: const TextSpan(
+          text: 'Position package within frame',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                blurRadius: 10.0,
+                color: Colors.black,
+                offset: Offset(2, 2),
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          detectionBox.center.dx - textPainter.width / 2,
+          detectionBox.top - 40,
+        ),
+      );
+    } else {
+      // Show "Package Detected" text
+      final textPainter = TextPainter(
+        text: const TextSpan(
+          text: '✓ Package Detected',
+          style: TextStyle(
+            color: Colors.green,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                blurRadius: 10.0,
+                color: Colors.black,
+                offset: Offset(2, 2),
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          detectionBox.center.dx - textPainter.width / 2,
+          detectionBox.top - 40,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(PackageDetectionPainter oldDelegate) {
+    return oldDelegate.detectionBox != detectionBox || 
+           oldDelegate.isDetected != isDetected;
   }
 }

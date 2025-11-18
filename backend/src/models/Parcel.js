@@ -41,6 +41,11 @@ const parcelSchema = new mongoose.Schema({
       message: 'Embedding vector must contain exactly 128 numbers'
     }
   },
+  image_path: {
+    type: String,
+    required: false,
+    trim: true
+  },
     status: {
       type: String,
       enum: ['DELIVERED', 'CLAIMED'],

@@ -43,3 +43,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Google ML Kit Object Detection
+    implementation("com.google.mlkit:object-detection:17.0.2")
+}

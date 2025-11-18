@@ -177,7 +177,8 @@ app.post('/api/parcel/log', async (req, res) => {
       locker_id,
       waybill_id,
       waybill_details,
-      image_embedding_vector
+      image_embedding_vector,
+      image_path // Optional field for storing image file path
     } = req.body;
 
     // Validate required fields
@@ -206,6 +207,7 @@ app.post('/api/parcel/log', async (req, res) => {
       waybill_id,
       waybill_details,
       image_embedding_vector,
+      image_path, // Include image path if provided
       status: 'DELIVERED',
       initial_timestamp: new Date()
     });
