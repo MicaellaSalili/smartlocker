@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
+import 'dart:async';
 import '../services/transaction_manager.dart';
 import '../services/tflite_processor.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:flutter/foundation.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
 class NewLiveScreen extends StatefulWidget {
   const NewLiveScreen({super.key});
@@ -21,13 +22,21 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
 
-  // Mobile scanner for barcode
-  MobileScannerController? _barcodeController;
-  bool _barcodeDetected = false;
+  // Barcode verification
+  bool _barcodeVerified = false;
+  int _barcodeMatchFrames = 0;
+
+  // Frame throttling for barcode detection
+  DateTime? _lastBarcodeDetectionTime;
+
+  // Detection state
+  bool _isDetecting = false;
+  Timer? _detectionTimer;
+  Timer? _motionTimer;
 
   // Detection steps
   int _currentStep =
-      0; // 0=Guide, 1=BarcodeDetection, 2=PackageDetection, 3=MotionTracking, 4=Success
+      0; // 0=Guide, 1=Barcode(1/5), 2=Package(2/5), 3=Motion(3/5), 4=Locker(4/5), 5=DoorClosing(5/5), 6=Success
   String _currentStepTitle = '';
   String _currentInstructions = '';
 
@@ -45,24 +54,30 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   static const int requiredFrames = 3;
   static const int requiredMotionFrames = 5;
 
+  // Step 4: Dual detection tracking (package + locker)
+  int _packageInLockerFrames = 0;
+  int _lockerFrameFrames = 0;
+  static const int requiredPackageInLockerFrames = 3;
+  static const int requiredLockerFrameFrames = 3;
+
+  // Configurable thresholds
+  static const double packageSimilarityThreshold = 0.85;
+  static const double packageInLockerThreshold = 0.75;
+  static const double lockerFrameThreshold = 0.70;
+  static const double motionTrackingThreshold = 0.80;
+
   // Bounding box for green frame
   Rect? _detectionBox;
   bool _showGreenFrame = false;
+  String _matchStatus = ''; // 'Match', 'Mismatch', or empty
+  double _currentSimilarity = 0.0;
+  String _detectionDiagnostics = ''; // Show what's being detected
 
   @override
   void initState() {
     super.initState();
-    _initializeBarcodeScanner();
     _initializeCamera();
     _fetchReferenceData();
-  }
-
-  void _initializeBarcodeScanner() {
-    _barcodeController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
   }
 
   Future<void> _initializeCamera() async {
@@ -71,8 +86,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
       if (_cameras != null && _cameras!.isNotEmpty) {
         _cameraController = CameraController(
           _cameras![0],
-          ResolutionPreset.high,
+          ResolutionPreset.max,
           enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.yuv420,
         );
         await _cameraController!.initialize();
         if (mounted) {
@@ -111,8 +127,11 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
       _currentStep = 1;
       _currentStepTitle = 'Step 1: Scan to Detect and Verify the Waybill ID';
       _currentInstructions = 'Position the barcode/QR code within the frame';
+      _barcodeVerified = false;
+      _barcodeMatchFrames = 0;
     });
-    // Step 1 uses mobile scanner, not camera stream
+    // Start camera stream for barcode detection
+    _startFrameProcessing();
   }
 
   void _startFrameProcessing() {
@@ -120,68 +139,119 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
       return;
     }
 
-    _cameraController!.startImageStream((CameraImage image) async {
-      if (_isProcessing ||
-          _currentStep == 0 ||
-          _currentStep == 1 ||
-          _currentStep == 4) {
-        return;
-      }
+    // Only start image stream if not already streaming
+    if (!_cameraController!.value.isStreamingImages) {
+      _cameraController!.startImageStream((CameraImage image) async {
+        if (_isProcessing || _currentStep == 0 || _currentStep >= 5) {
+          return;
+        }
 
-      _isProcessing = true;
-      await _processFrame(image);
-      _isProcessing = false;
-    });
+        _isProcessing = true;
+        await _processFrame(image);
+        _isProcessing = false;
+      });
+    }
   }
 
   Future<void> _processFrame(CameraImage frame) async {
     try {
+      // Step 1: Barcode detection using camera stream
+      if (_currentStep == 1 && !_barcodeVerified) {
+        await _detectBarcodeFromFrame(frame);
+        return;
+      }
+
+      // Step 2: Package detection (handled by timer)
       if (_currentStep == 2) {
-        // Step 2: Detect whole package
-        await _detectPackage(frame);
-      } else if (_currentStep == 3) {
-        // Step 3: Track motion of package
-        await _trackMotion(frame);
+        return; // Detection handled by _detectPackage timer
+      }
+
+      // Step 3: Motion tracking (handled by timer)
+      if (_currentStep == 3) {
+        return; // Motion tracking handled by _trackMotion timer
       }
     } catch (e) {
       debugPrint('Error processing frame: $e');
     }
   }
 
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    if (_barcodeDetected || _isProcessing || _currentStep != 1) return;
+  Future<void> _detectBarcodeFromFrame(CameraImage cameraImage) async {
+    if (_isDetecting) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isEmpty) return;
+    // Throttle barcode detection to every 500ms
+    final now = DateTime.now();
+    if (_lastBarcodeDetectionTime != null &&
+        now.difference(_lastBarcodeDetectionTime!).inMilliseconds < 500) {
+      return;
+    }
+    _lastBarcodeDetectionTime = now;
 
-    final barcode = barcodes.first;
-    if (barcode.rawValue == null) return;
+    _isDetecting = true;
 
-    final scannedBarcode = barcode.rawValue!;
+    try {
+      // Convert CameraImage to InputImage for ML Kit
+      final WriteBuffer allBytes = WriteBuffer();
+      for (final Plane plane in cameraImage.planes) {
+        allBytes.putUint8List(plane.bytes);
+      }
+      final bytes = allBytes.done().buffer.asUint8List();
 
-    // Compare with reference waybill ID
-    if (_scannedWaybillId != null && scannedBarcode == _scannedWaybillId) {
-      _consecutiveDetections++;
+      final Size imageSize = Size(
+        cameraImage.width.toDouble(),
+        cameraImage.height.toDouble(),
+      );
 
-      debugPrint('✅ Barcode match! ${_consecutiveDetections}/$requiredFrames');
-      debugPrint('   Scanned: $scannedBarcode');
-      debugPrint('   Reference: $_scannedWaybillId');
+      final InputImageRotation imageRotation = InputImageRotation.rotation0deg;
+      final InputImageFormat inputImageFormat = InputImageFormat.yuv420;
 
-      setState(() {
-        _showGreenFrame = true;
-        _detectionBox = Rect.fromLTWH(50, 150, 300, 200);
-      });
+      final inputImageMetadata = InputImageMetadata(
+        size: imageSize,
+        rotation: imageRotation,
+        format: inputImageFormat,
+        bytesPerRow: cameraImage.planes[0].bytesPerRow,
+      );
 
-      if (_consecutiveDetections >= requiredFrames) {
-        setState(() {
-          _barcodeDetected = true;
-          _isProcessing = true;
-        });
+      final inputImage = InputImage.fromBytes(
+        bytes: bytes,
+        metadata: inputImageMetadata,
+      );
 
-        debugPrint('✅ Waybill barcode verified!');
-        _consecutiveDetections = 0;
+      // Use Google ML Kit Barcode Scanner
+      final barcodeScanner = BarcodeScanner();
+      final List<Barcode> barcodes = await barcodeScanner.processImage(
+        inputImage,
+      );
+      await barcodeScanner.close();
 
-        Future.delayed(const Duration(milliseconds: 500), () {
+      if (barcodes.isEmpty) {
+        _isDetecting = false;
+        return;
+      }
+
+      final barcode = barcodes.first;
+      if (barcode.rawValue == null) {
+        _isDetecting = false;
+        return;
+      }
+
+      final scannedBarcode = barcode.rawValue!;
+      debugPrint('📱 Barcode detected: $scannedBarcode');
+
+      // If no reference barcode, accept any barcode
+      if (_scannedWaybillId == null || _scannedWaybillId!.isEmpty) {
+        debugPrint(
+          '⚠️ No reference waybill ID stored, accepting scanned barcode',
+        );
+        _barcodeMatchFrames++;
+
+        if (_barcodeMatchFrames >= 1 && mounted) {
+          setState(() {
+            _barcodeVerified = true;
+            _showGreenFrame = true;
+            _detectionBox = Rect.fromLTWH(50, 150, 300, 200);
+          });
+
+          await Future.delayed(const Duration(milliseconds: 800));
           if (mounted) {
             setState(() {
               _currentStep = 2;
@@ -189,27 +259,312 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   'Step 2: Scan to Detect and Verify the Package';
               _currentInstructions =
                   'Position the entire package within the frame';
+              _barcodeMatchFrames = 0;
               _showGreenFrame = false;
-              _barcodeDetected = false;
-              _isProcessing = false;
             });
-            _startFrameProcessing(); // Start camera stream for package detection
+            _startObjectDetection();
           }
-        });
+        }
+        _isDetecting = false;
+        return;
       }
-    } else {
-      _consecutiveDetections = 0;
-      setState(() {
-        _showGreenFrame = false;
-      });
 
-      debugPrint('❌ Barcode mismatch!');
-      debugPrint('   Scanned: $scannedBarcode');
-      debugPrint('   Expected: $_scannedWaybillId');
+      // Compare with reference waybill ID
+      if (scannedBarcode == _scannedWaybillId) {
+        _barcodeMatchFrames++;
+        debugPrint('✅ Barcode match! ${_barcodeMatchFrames}/1');
+
+        setState(() {
+          _showGreenFrame = true;
+          _detectionBox = Rect.fromLTWH(50, 150, 300, 200);
+          _matchStatus = 'Match';
+          _currentSimilarity = 100.0;
+        });
+
+        if (_barcodeMatchFrames >= 1 && mounted) {
+          setState(() {
+            _barcodeVerified = true;
+          });
+
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) {
+            setState(() {
+              _currentStep = 2;
+              _currentStepTitle =
+                  'Step 2: Scan to Detect and Verify the Package';
+              _currentInstructions =
+                  'Position the entire package within the frame';
+              _barcodeMatchFrames = 0;
+              _showGreenFrame = false;
+            });
+            _startObjectDetection();
+          }
+        }
+      } else {
+        _barcodeMatchFrames = 0;
+        setState(() {
+          _showGreenFrame = false;
+          _matchStatus = 'Mismatch';
+          _currentSimilarity = 0.0;
+        });
+        debugPrint('❌ Barcode mismatch: $scannedBarcode vs $_scannedWaybillId');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Barcode detection error: $e');
+    } finally {
+      _isDetecting = false;
     }
   }
 
-  Future<void> _detectPackage(CameraImage frame) async {
+  void _startObjectDetection() {
+    if (_detectionTimer != null) return;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    setState(() {
+      _showGreenFrame = true;
+      _detectionBox = Rect.fromCenter(
+        center: Offset(screenWidth / 2, screenHeight / 2),
+        width: screenWidth * 0.75,
+        height: screenHeight * 0.55,
+      );
+    });
+
+    // Start detection timer
+    _detectionTimer = Timer.periodic(const Duration(milliseconds: 800), (
+      timer,
+    ) async {
+      if (!mounted || _isDetecting || _currentStep != 2) {
+        return;
+      }
+      await _detectPackage();
+    });
+  }
+
+  void _stopObjectDetection() {
+    _detectionTimer?.cancel();
+    _detectionTimer = null;
+    setState(() {
+      _showGreenFrame = false;
+    });
+  }
+
+  void _startMotionTracking() {
+    // Start periodic motion tracking (every 800ms)
+    _motionTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
+      if (_currentStep == 3 && !_isDetecting) {
+        _trackMotion();
+      }
+    });
+  }
+
+  void _stopMotionTracking() {
+    _motionTimer?.cancel();
+    _motionTimer = null;
+    _consecutiveMotionFrames = 0;
+  }
+
+  Timer? _lockerTimer;
+
+  void _startLockerVerification() {
+    // Reset dual tracking counters
+    _packageInLockerFrames = 0;
+    _lockerFrameFrames = 0;
+
+    setState(() {
+      _detectionDiagnostics = 'Detecting: Package + Locker';
+    });
+
+    // Start periodic dual detection (every 800ms)
+    _lockerTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
+      if (_currentStep == 4 && !_isDetecting) {
+        _detectPackageAndLocker();
+      }
+    });
+  }
+
+  void _stopLockerVerification() {
+    _lockerTimer?.cancel();
+    _lockerTimer = null;
+    _packageInLockerFrames = 0;
+    _lockerFrameFrames = 0;
+    setState(() {
+      _detectionDiagnostics = '';
+    });
+  }
+
+  Future<void> _detectPackageAndLocker() async {
+    if (_isDetecting || _currentStep != 4) return;
+
+    try {
+      _isDetecting = true;
+
+      // Capture image for dual detection
+      final XFile image = await _cameraController!.takePicture();
+      final imageBytes = await image.readAsBytes();
+      final embedding = await TFLiteProcessor.generateEmbedding(imageBytes);
+
+      if (_referenceEmbedding != null) {
+        final similarity = _calculateCosineSimilarity(
+          embedding,
+          _referenceEmbedding!,
+        );
+
+        // Check if package is detected (in locker position)
+        final packageDetected = similarity >= packageInLockerThreshold;
+
+        // Check if locker frame is detected (lower threshold to detect locker edges)
+        final lockerDetected = similarity >= lockerFrameThreshold;
+
+        debugPrint(
+          '📦 Package: ${(similarity * 100).toStringAsFixed(1)}% (${packageDetected ? "✓" : "✗"}) | '
+          '🚪 Locker: ${(similarity * 100).toStringAsFixed(1)}% (${lockerDetected ? "✓" : "✗"})',
+        );
+
+        // Update frame counters based on detection
+        if (packageDetected) {
+          _packageInLockerFrames++;
+        } else {
+          _packageInLockerFrames = 0;
+        }
+
+        if (lockerDetected) {
+          _lockerFrameFrames++;
+        } else {
+          _lockerFrameFrames = 0;
+        }
+
+        // Update UI with real-time diagnostics
+        setState(() {
+          if (packageDetected && lockerDetected) {
+            _showGreenFrame = true;
+            _matchStatus = 'Match';
+            _currentSimilarity = similarity * 100;
+            _detectionDiagnostics =
+                'Package: ${_packageInLockerFrames}/${requiredPackageInLockerFrames} | '
+                'Locker: ${_lockerFrameFrames}/${requiredLockerFrameFrames}';
+          } else if (!packageDetected && lockerDetected) {
+            _showGreenFrame = false;
+            _matchStatus = 'Package Missing';
+            _currentSimilarity = similarity * 100;
+            _detectionDiagnostics =
+                '⚠️ Package not detected. Adjust camera position.';
+          } else if (packageDetected && !lockerDetected) {
+            _showGreenFrame = false;
+            _matchStatus = 'Locker Missing';
+            _currentSimilarity = similarity * 100;
+            _detectionDiagnostics =
+                '⚠️ Locker frame not detected. Point camera at locker.';
+          } else {
+            _showGreenFrame = false;
+            _matchStatus = 'Mismatch';
+            _currentSimilarity = similarity * 100;
+            _detectionDiagnostics =
+                '⚠️ Neither package nor locker detected clearly.';
+          }
+        });
+
+        // Check if both package and locker are consistently detected
+        if (_packageInLockerFrames >= requiredPackageInLockerFrames &&
+            _lockerFrameFrames >= requiredLockerFrameFrames) {
+          debugPrint(
+            '✅ Both package and locker verified! '
+            'Package: ${_packageInLockerFrames}/${requiredPackageInLockerFrames}, '
+            'Locker: ${_lockerFrameFrames}/${requiredLockerFrameFrames}',
+          );
+
+          // Stop locker verification
+          _stopLockerVerification();
+
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          setState(() {
+            _showGreenFrame = false;
+            _matchStatus = '';
+            _detectionDiagnostics = '';
+          });
+
+          // Start placement countdown
+          _startLockerPlacementCountdown();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error detecting package and locker: $e');
+    } finally {
+      _isDetecting = false;
+    }
+  }
+
+  int _doorCountdown = 5;
+  Timer? _countdownTimer;
+  int _lockerPlacementCountdown = 5;
+  Timer? _lockerPlacementTimer;
+
+  void _startLockerPlacementCountdown() {
+    _lockerPlacementCountdown = 5;
+    setState(() {
+      _currentInstructions =
+          'PUT IT NOW IN THE LOCKER IN ${_lockerPlacementCountdown}s';
+    });
+
+    _lockerPlacementTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_lockerPlacementCountdown > 1) {
+        setState(() {
+          _lockerPlacementCountdown--;
+          _currentInstructions =
+              'PUT IT NOW IN THE LOCKER IN ${_lockerPlacementCountdown}s';
+        });
+      } else {
+        timer.cancel();
+        _moveToStep5();
+      }
+    });
+  }
+
+  void _moveToStep5() async {
+    await _cameraController?.stopImageStream();
+
+    setState(() {
+      _currentStep = 5;
+      _currentStepTitle = 'Step 5: Door Closing';
+      _currentInstructions =
+          'Close the Door Immediately to complete the drop. Failure to close the door will make you restart the entire process.';
+      _showGreenFrame = false;
+    });
+
+    // Start door closing countdown
+    _startDoorClosingCountdown();
+  }
+
+  void _startDoorClosingCountdown() {
+    _doorCountdown = 5;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_doorCountdown > 0) {
+        setState(() {
+          _doorCountdown--;
+          _currentInstructions = 'Doors Closing in ${_doorCountdown}s.';
+        });
+      } else {
+        timer.cancel();
+        _completeDrop();
+      }
+    });
+  }
+
+  void _completeDrop() async {
+    setState(() {
+      _currentStep = 6;
+      _currentStepTitle = 'Verification Complete!';
+      _currentInstructions = 'Package successfully verified and placed';
+      _showGreenFrame = false;
+    });
+
+    // Finalize transaction
+    _finalizeTransaction();
+  }
+
+  Future<void> _detectPackage() async {
     try {
       // Capture image and generate embedding
       final XFile image = await _cameraController!.takePicture();
@@ -227,17 +582,22 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
           'Package similarity: ${(similarity * 100).toStringAsFixed(1)}%',
         );
 
-        if (similarity >= 0.85) {
+        if (similarity >= packageSimilarityThreshold) {
           _consecutiveDetections++;
 
           setState(() {
             _showGreenFrame = true;
             _detectionBox = Rect.fromLTWH(30, 100, 340, 400);
+            _matchStatus = 'Match';
+            _currentSimilarity = similarity * 100;
           });
 
           if (_consecutiveDetections >= requiredFrames) {
             debugPrint('✅ Package verified!');
             _consecutiveDetections = 0;
+
+            // Stop package detection timer
+            _stopObjectDetection();
 
             await Future.delayed(const Duration(milliseconds: 500));
 
@@ -249,11 +609,16 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   'Keep the package in frame while moving to locker';
               _showGreenFrame = false;
             });
+
+            // Start motion tracking timer for Step 3
+            _startMotionTracking();
           }
         } else {
           _consecutiveDetections = 0;
           setState(() {
             _showGreenFrame = false;
+            _matchStatus = 'Mismatch';
+            _currentSimilarity = similarity * 100;
           });
         }
       }
@@ -262,8 +627,12 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     }
   }
 
-  Future<void> _trackMotion(CameraImage frame) async {
+  Future<void> _trackMotion() async {
+    if (_isDetecting || _currentStep != 3) return;
+
     try {
+      _isDetecting = true;
+
       // Capture image and generate embedding
       final XFile image = await _cameraController!.takePicture();
       final imageBytes = await image.readAsBytes();
@@ -276,12 +645,14 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
           _referenceEmbedding!,
         );
 
-        if (similarity >= 0.80) {
+        if (similarity >= motionTrackingThreshold) {
           _consecutiveMotionFrames++;
 
           setState(() {
             _showGreenFrame = true;
             _detectionBox = Rect.fromLTWH(30, 100, 340, 400);
+            _matchStatus = 'Match';
+            _currentSimilarity = similarity * 100;
           });
 
           debugPrint(
@@ -289,32 +660,38 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
           );
 
           if (_consecutiveMotionFrames >= requiredMotionFrames) {
-            debugPrint('✅ Motion tracking complete!');
+            debugPrint('✅ Motion tracking complete! Moving to Step 4');
 
-            // Stop image stream
-            await _cameraController?.stopImageStream();
+            // Stop motion tracking
+            _stopMotionTracking();
+            _consecutiveMotionFrames = 0;
 
             await Future.delayed(const Duration(milliseconds: 500));
 
             setState(() {
               _currentStep = 4;
-              _currentStepTitle = 'Verification Complete!';
-              _currentInstructions = 'Package successfully verified';
+              _currentStepTitle = 'Step 4: Find the Locker and Verify';
+              _currentInstructions =
+                  'Point camera at the locker to verify placement';
               _showGreenFrame = false;
             });
 
-            // Finalize transaction
-            _finalizeTransaction();
+            // Start locker verification
+            _startLockerVerification();
           }
         } else {
           _consecutiveMotionFrames = 0;
           setState(() {
             _showGreenFrame = false;
+            _matchStatus = 'Mismatch';
+            _currentSimilarity = similarity * 100;
           });
         }
       }
     } catch (e) {
       debugPrint('Error tracking motion: $e');
+    } finally {
+      _isDetecting = false;
     }
   }
 
@@ -334,37 +711,6 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     if (normA == 0 || normB == 0) return 0.0;
 
     return dotProduct / (math.sqrt(normA) * math.sqrt(normB));
-  }
-
-  InputImage? _convertCameraImage(CameraImage image) {
-    try {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      final Size imageSize = Size(
-        image.width.toDouble(),
-        image.height.toDouble(),
-      );
-
-      final InputImageRotation imageRotation = InputImageRotation.rotation0deg;
-
-      final InputImageFormat inputImageFormat = InputImageFormat.nv21;
-
-      final metadata = InputImageMetadata(
-        size: imageSize,
-        rotation: imageRotation,
-        format: inputImageFormat,
-        bytesPerRow: image.planes.first.bytesPerRow,
-      );
-
-      return InputImage.fromBytes(bytes: bytes, metadata: metadata);
-    } catch (e) {
-      debugPrint('Error converting camera image: $e');
-      return null;
-    }
   }
 
   Future<void> _finalizeTransaction() async {
@@ -390,8 +736,16 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   @override
   void dispose() {
+    _detectionTimer?.cancel();
+    _motionTimer?.cancel();
+    _lockerTimer?.cancel();
+    _countdownTimer?.cancel();
+    _lockerPlacementTimer?.cancel();
+    _stopObjectDetection();
+    _stopMotionTracking();
+    _stopLockerVerification();
+    _cameraController?.stopImageStream();
     _cameraController?.dispose();
-    _barcodeController?.dispose();
     super.dispose();
   }
 
@@ -402,18 +756,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Step 1: Barcode Scanner
-            if (_currentStep == 1 && _barcodeController != null)
-              Positioned.fill(
-                child: MobileScanner(
-                  controller: _barcodeController,
-                  onDetect: _onBarcodeDetected,
-                ),
-              ),
-
-            // Steps 2-3: Camera Preview
-            if (_currentStep >= 2 &&
-                _currentStep <= 3 &&
+            // Step 1-4: Camera Preview (unified camera for all steps)
+            if (_currentStep >= 1 &&
+                _currentStep <= 4 &&
                 _isCameraInitialized &&
                 _cameraController != null)
               Positioned.fill(child: CameraPreview(_cameraController!)),
@@ -423,6 +768,67 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
               Positioned.fill(
                 child: CustomPaint(
                   painter: DetectionFramePainter(detectionBox: _detectionBox!),
+                ),
+              ),
+
+            // Match/Mismatch Label on top of detection box
+            if (_matchStatus.isNotEmpty && _detectionBox != null)
+              Positioned(
+                top: _detectionBox!.top - 40,
+                left: _detectionBox!.left,
+                right: MediaQuery.of(context).size.width - _detectionBox!.right,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _matchStatus == 'Match' ? Colors.green : Colors.red,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _matchStatus == 'Match'
+                        ? 'Match'
+                        : _matchStatus == 'Package Missing'
+                        ? 'Package Missing'
+                        : _matchStatus == 'Locker Missing'
+                        ? 'Locker Missing'
+                        : 'Mismatch - ${_currentSimilarity.toStringAsFixed(1)}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+            // Real-time diagnostics for Step 4
+            if (_currentStep == 4 && _detectionDiagnostics.isNotEmpty)
+              Positioned(
+                top: 80,
+                left: 20,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue, width: 2),
+                  ),
+                  child: Text(
+                    _detectionDiagnostics,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
 
@@ -464,9 +870,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (_currentStep > 0 && _currentStep < 4)
+                    if (_currentStep > 0 && _currentStep < 6)
                       const SizedBox(height: 8),
-                    if (_currentStep > 0 && _currentStep < 4)
+                    if (_currentStep > 0 && _currentStep < 6)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -477,7 +883,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          _showGreenFrame
+                          _currentStep == 4 && _showGreenFrame
+                              ? 'Verifying: Pkg ${_packageInLockerFrames}/${requiredPackageInLockerFrames} | Lkr ${_lockerFrameFrames}/${requiredLockerFrameFrames}'
+                              : _showGreenFrame
                               ? 'Verifying: ${(_consecutiveDetections >= requiredFrames ? _consecutiveMotionFrames : _consecutiveDetections)}/${_currentStep == 3 ? requiredMotionFrames : requiredFrames}'
                               : 'Scanning...',
                           style: const TextStyle(
@@ -493,7 +901,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
             ),
 
             // Instructions
-            if (_currentStep > 0 && _currentStep < 4)
+            if (_currentStep > 0 && _currentStep < 6)
               Positioned(
                 bottom: 100,
                 left: 20,
@@ -564,8 +972,8 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                 ),
               ),
 
-            // Success Screen (Step 4)
-            if (_currentStep == 4)
+            // Success Screen (Step 6)
+            if (_currentStep == 6)
               Positioned.fill(
                 child: Container(
                   color: Colors.white,
@@ -623,7 +1031,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
               ),
 
             // Progress indicators
-            if (_currentStep > 0 && _currentStep < 4)
+            if (_currentStep > 0 && _currentStep < 6)
               Positioned(
                 bottom: 20,
                 left: 20,
@@ -632,14 +1040,22 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildProgressDot(1, 'Barcode'),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildProgressLine(1),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildProgressDot(2, 'Package'),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildProgressLine(2),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildProgressDot(3, 'Motion'),
+                    const SizedBox(width: 4),
+                    _buildProgressLine(3),
+                    const SizedBox(width: 4),
+                    _buildProgressDot(4, 'Locker'),
+                    const SizedBox(width: 4),
+                    _buildProgressLine(4),
+                    const SizedBox(width: 4),
+                    _buildProgressDot(5, 'Door'),
                   ],
                 ),
               ),
