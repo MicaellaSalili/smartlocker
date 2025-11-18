@@ -781,22 +781,22 @@ class _ScanScreenState extends State<ScanScreen> {
       // Save image to permanent storage
       final directory = await getApplicationDocumentsDirectory();
       final imagesDir = Directory(path.join(directory.path, 'package_images'));
-      
+
       // Create directory if it doesn't exist
       if (!await imagesDir.exists()) {
         await imagesDir.create(recursive: true);
       }
-      
+
       // Generate unique filename with timestamp and barcode
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final barcode = _scannedBarcode ?? 'unknown';
       final filename = 'package_${barcode}_$timestamp.png';
       final savedImagePath = path.join(imagesDir.path, filename);
-      
+
       // Copy image to permanent location
       final savedFile = File(savedImagePath);
       await savedFile.writeAsBytes(_packageImage!);
-      
+
       _packageImagePath = savedImagePath;
 
       // Generate embedding

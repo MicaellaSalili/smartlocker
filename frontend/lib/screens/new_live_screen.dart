@@ -26,24 +26,25 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   bool _barcodeDetected = false;
 
   // Detection steps
-  int _currentStep = 0; // 0=Guide, 1=BarcodeDetection, 2=PackageDetection, 3=MotionTracking, 4=Success
+  int _currentStep =
+      0; // 0=Guide, 1=BarcodeDetection, 2=PackageDetection, 3=MotionTracking, 4=Success
   String _currentStepTitle = '';
   String _currentInstructions = '';
-  
+
   // Processing flags
   bool _isProcessing = false;
-  
+
   // Reference data from scan
   String? _scannedWaybillId;
   List<double>? _referenceEmbedding;
   String? _referenceWaybillDetails;
-  
+
   // Frame tracking
   int _consecutiveDetections = 0;
   int _consecutiveMotionFrames = 0;
   static const int requiredFrames = 3;
   static const int requiredMotionFrames = 5;
-  
+
   // Bounding box for green frame
   Rect? _detectionBox;
   bool _showGreenFrame = false;
@@ -91,11 +92,11 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
         context,
         listen: false,
       );
-      
+
       _scannedWaybillId = transactionManager.waybillId;
       _referenceEmbedding = transactionManager.embedding;
       _referenceWaybillDetails = transactionManager.waybillDetails;
-      
+
       debugPrint('✅ Reference data loaded:');
       debugPrint('   Waybill ID: $_scannedWaybillId');
       debugPrint('   Embedding length: ${_referenceEmbedding?.length}');
@@ -120,7 +121,10 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     }
 
     _cameraController!.startImageStream((CameraImage image) async {
-      if (_isProcessing || _currentStep == 0 || _currentStep == 1 || _currentStep == 4) {
+      if (_isProcessing ||
+          _currentStep == 0 ||
+          _currentStep == 1 ||
+          _currentStep == 4) {
         return;
       }
 
@@ -181,8 +185,10 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
           if (mounted) {
             setState(() {
               _currentStep = 2;
-              _currentStepTitle = 'Step 2: Scan to Detect and Verify the Package';
-              _currentInstructions = 'Position the entire package within the frame';
+              _currentStepTitle =
+                  'Step 2: Scan to Detect and Verify the Package';
+              _currentInstructions =
+                  'Position the entire package within the frame';
               _showGreenFrame = false;
               _barcodeDetected = false;
               _isProcessing = false;
@@ -196,7 +202,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
       setState(() {
         _showGreenFrame = false;
       });
-      
+
       debugPrint('❌ Barcode mismatch!');
       debugPrint('   Scanned: $scannedBarcode');
       debugPrint('   Expected: $_scannedWaybillId');
@@ -212,13 +218,18 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
       // Compare with reference embedding
       if (_referenceEmbedding != null) {
-        final similarity = _calculateCosineSimilarity(embedding, _referenceEmbedding!);
-        
-        debugPrint('Package similarity: ${(similarity * 100).toStringAsFixed(1)}%');
+        final similarity = _calculateCosineSimilarity(
+          embedding,
+          _referenceEmbedding!,
+        );
+
+        debugPrint(
+          'Package similarity: ${(similarity * 100).toStringAsFixed(1)}%',
+        );
 
         if (similarity >= 0.85) {
           _consecutiveDetections++;
-          
+
           setState(() {
             _showGreenFrame = true;
             _detectionBox = Rect.fromLTWH(30, 100, 340, 400);
@@ -227,13 +238,15 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
           if (_consecutiveDetections >= requiredFrames) {
             debugPrint('✅ Package verified!');
             _consecutiveDetections = 0;
-            
+
             await Future.delayed(const Duration(milliseconds: 500));
-            
+
             setState(() {
               _currentStep = 3;
-              _currentStepTitle = 'Step 3: Maintain Live Detection while placing';
-              _currentInstructions = 'Keep the package in frame while moving to locker';
+              _currentStepTitle =
+                  'Step 3: Maintain Live Detection while placing';
+              _currentInstructions =
+                  'Keep the package in frame while moving to locker';
               _showGreenFrame = false;
             });
           }
@@ -258,26 +271,31 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
       // Compare with reference embedding
       if (_referenceEmbedding != null) {
-        final similarity = _calculateCosineSimilarity(embedding, _referenceEmbedding!);
-        
+        final similarity = _calculateCosineSimilarity(
+          embedding,
+          _referenceEmbedding!,
+        );
+
         if (similarity >= 0.80) {
           _consecutiveMotionFrames++;
-          
+
           setState(() {
             _showGreenFrame = true;
             _detectionBox = Rect.fromLTWH(30, 100, 340, 400);
           });
 
-          debugPrint('Motion tracking: ${_consecutiveMotionFrames}/$requiredMotionFrames');
+          debugPrint(
+            'Motion tracking: ${_consecutiveMotionFrames}/$requiredMotionFrames',
+          );
 
           if (_consecutiveMotionFrames >= requiredMotionFrames) {
             debugPrint('✅ Motion tracking complete!');
-            
+
             // Stop image stream
             await _cameraController?.stopImageStream();
-            
+
             await Future.delayed(const Duration(milliseconds: 500));
-            
+
             setState(() {
               _currentStep = 4;
               _currentStepTitle = 'Verification Complete!';
@@ -302,19 +320,19 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   double _calculateCosineSimilarity(List<double> a, List<double> b) {
     if (a.length != b.length) return 0.0;
-    
+
     double dotProduct = 0.0;
     double normA = 0.0;
     double normB = 0.0;
-    
+
     for (int i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i];
       normA += a[i] * a[i];
       normB += b[i] * b[i];
     }
-    
+
     if (normA == 0 || normB == 0) return 0.0;
-    
+
     return dotProduct / (math.sqrt(normA) * math.sqrt(normB));
   }
 
@@ -331,11 +349,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
         image.height.toDouble(),
       );
 
-      final InputImageRotation imageRotation =
-          InputImageRotation.rotation0deg;
+      final InputImageRotation imageRotation = InputImageRotation.rotation0deg;
 
-      final InputImageFormat inputImageFormat =
-          InputImageFormat.nv21;
+      final InputImageFormat inputImageFormat = InputImageFormat.nv21;
 
       final metadata = InputImageMetadata(
         size: imageSize,
@@ -344,10 +360,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
         bytesPerRow: image.planes.first.bytesPerRow,
       );
 
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: metadata,
-      );
+      return InputImage.fromBytes(bytes: bytes, metadata: metadata);
     } catch (e) {
       debugPrint('Error converting camera image: $e');
       return null;
@@ -399,18 +412,17 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
               ),
 
             // Steps 2-3: Camera Preview
-            if (_currentStep >= 2 && _currentStep <= 3 && _isCameraInitialized && _cameraController != null)
-              Positioned.fill(
-                child: CameraPreview(_cameraController!),
-              ),
+            if (_currentStep >= 2 &&
+                _currentStep <= 3 &&
+                _isCameraInitialized &&
+                _cameraController != null)
+              Positioned.fill(child: CameraPreview(_cameraController!)),
 
             // Green Detection Frame
             if (_showGreenFrame && _detectionBox != null)
               Positioned.fill(
                 child: CustomPaint(
-                  painter: DetectionFramePainter(
-                    detectionBox: _detectionBox!,
-                  ),
+                  painter: DetectionFramePainter(detectionBox: _detectionBox!),
                 ),
               ),
 
@@ -424,9 +436,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                     border: Border.all(color: Colors.white, width: 3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: CustomPaint(
-                    painter: ScanningFramePainter(),
-                  ),
+                  child: CustomPaint(painter: ScanningFramePainter()),
                 ),
               ),
 
@@ -441,10 +451,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.transparent,
-                    ],
+                    colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                   ),
                 ),
                 child: Column(
@@ -470,7 +477,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          _showGreenFrame ? 'Verifying: ${(_consecutiveDetections >= requiredFrames ? _consecutiveMotionFrames : _consecutiveDetections)}/${_currentStep == 3 ? requiredMotionFrames : requiredFrames}' : 'Scanning...',
+                          _showGreenFrame
+                              ? 'Verifying: ${(_consecutiveDetections >= requiredFrames ? _consecutiveMotionFrames : _consecutiveDetections)}/${_currentStep == 3 ? requiredMotionFrames : requiredFrames}'
+                              : 'Scanning...',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -498,10 +507,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   child: Text(
                     _currentInstructions,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),
               ),
@@ -586,9 +592,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                         child: Text(
                           'Package successfully verified!\nYou can now close the locker door.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(fontSize: 16),
                         ),
                       ),
                       const SizedBox(height: 48),
@@ -648,7 +652,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   Widget _buildProgressDot(int step, String label) {
     final isActive = _currentStep == step;
     final isCompleted = _currentStep > step;
-    
+
     return Column(
       children: [
         Container(
@@ -658,8 +662,8 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
             color: isCompleted
                 ? Colors.green
                 : isActive
-                    ? const Color(0xFF4285F4)
-                    : Colors.grey,
+                ? const Color(0xFF4285F4)
+                : Colors.grey,
             shape: BoxShape.circle,
           ),
           child: Center(
@@ -689,7 +693,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   Widget _buildProgressLine(int step) {
     final isCompleted = _currentStep > step;
-    
+
     return Container(
       width: 40,
       height: 2,
@@ -708,19 +712,11 @@ class ScanningFramePainter extends CustomPainter {
 
     // Draw corner brackets only
     const double cornerLength = 40.0;
-    
+
     // Top-left corner
-    canvas.drawLine(
-      const Offset(0, 0),
-      const Offset(cornerLength, 0),
-      paint,
-    );
-    canvas.drawLine(
-      const Offset(0, 0),
-      const Offset(0, cornerLength),
-      paint,
-    );
-    
+    canvas.drawLine(const Offset(0, 0), const Offset(cornerLength, 0), paint);
+    canvas.drawLine(const Offset(0, 0), const Offset(0, cornerLength), paint);
+
     // Top-right corner
     canvas.drawLine(
       Offset(size.width, 0),
@@ -732,7 +728,7 @@ class ScanningFramePainter extends CustomPainter {
       Offset(size.width, cornerLength),
       paint,
     );
-    
+
     // Bottom-left corner
     canvas.drawLine(
       Offset(0, size.height),
@@ -744,7 +740,7 @@ class ScanningFramePainter extends CustomPainter {
       Offset(0, size.height - cornerLength),
       paint,
     );
-    
+
     // Bottom-right corner
     canvas.drawLine(
       Offset(size.width, size.height),
@@ -786,7 +782,7 @@ class DetectionFramePainter extends CustomPainter {
 
     // Draw corner brackets
     const double cornerLength = 30.0;
-    
+
     // Top-left corner
     canvas.drawLine(
       detectionBox.topLeft,
@@ -798,7 +794,7 @@ class DetectionFramePainter extends CustomPainter {
       detectionBox.topLeft + const Offset(0, cornerLength),
       paint,
     );
-    
+
     // Top-right corner
     canvas.drawLine(
       detectionBox.topRight,
@@ -810,7 +806,7 @@ class DetectionFramePainter extends CustomPainter {
       detectionBox.topRight + const Offset(0, cornerLength),
       paint,
     );
-    
+
     // Bottom-left corner
     canvas.drawLine(
       detectionBox.bottomLeft,
@@ -822,7 +818,7 @@ class DetectionFramePainter extends CustomPainter {
       detectionBox.bottomLeft + const Offset(0, -cornerLength),
       paint,
     );
-    
+
     // Bottom-right corner
     canvas.drawLine(
       detectionBox.bottomRight,

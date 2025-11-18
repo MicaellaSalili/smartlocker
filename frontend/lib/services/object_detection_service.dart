@@ -83,7 +83,7 @@ class DetectionPainter extends CustomPainter {
 
       // Draw filled rectangle
       canvas.drawRect(rect, fillPaint);
-      
+
       // Draw border
       canvas.drawRect(rect, paint);
 
@@ -95,7 +95,8 @@ class DetectionPainter extends CustomPainter {
         final label = detectedObject.labels.first;
         final textPainter = TextPainter(
           text: TextSpan(
-            text: '${label.text} ${(label.confidence * 100).toStringAsFixed(0)}%',
+            text:
+                '${label.text} ${(label.confidence * 100).toStringAsFixed(0)}%',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -106,32 +107,61 @@ class DetectionPainter extends CustomPainter {
           textDirection: ui.TextDirection.ltr,
         );
         textPainter.layout();
-        textPainter.paint(
-          canvas,
-          Offset(rect.left, rect.top - 20),
-        );
+        textPainter.paint(canvas, Offset(rect.left, rect.top - 20));
       }
     }
   }
 
   void _drawCornerBrackets(Canvas canvas, Rect rect, Paint paint) {
     final double cornerLength = 30.0;
-    
+
     // Top-left corner
-    canvas.drawLine(rect.topLeft, rect.topLeft + Offset(cornerLength, 0), paint);
-    canvas.drawLine(rect.topLeft, rect.topLeft + Offset(0, cornerLength), paint);
-    
+    canvas.drawLine(
+      rect.topLeft,
+      rect.topLeft + Offset(cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.topLeft,
+      rect.topLeft + Offset(0, cornerLength),
+      paint,
+    );
+
     // Top-right corner
-    canvas.drawLine(rect.topRight, rect.topRight + Offset(-cornerLength, 0), paint);
-    canvas.drawLine(rect.topRight, rect.topRight + Offset(0, cornerLength), paint);
-    
+    canvas.drawLine(
+      rect.topRight,
+      rect.topRight + Offset(-cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.topRight,
+      rect.topRight + Offset(0, cornerLength),
+      paint,
+    );
+
     // Bottom-left corner
-    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(cornerLength, 0), paint);
-    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + Offset(0, -cornerLength), paint);
-    
+    canvas.drawLine(
+      rect.bottomLeft,
+      rect.bottomLeft + Offset(cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.bottomLeft,
+      rect.bottomLeft + Offset(0, -cornerLength),
+      paint,
+    );
+
     // Bottom-right corner
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(-cornerLength, 0), paint);
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + Offset(0, -cornerLength), paint);
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(-cornerLength, 0),
+      paint,
+    );
+    canvas.drawLine(
+      rect.bottomRight,
+      rect.bottomRight + Offset(0, -cornerLength),
+      paint,
+    );
   }
 
   Rect _scaleRect({

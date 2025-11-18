@@ -24,97 +24,114 @@ class TransactionData {
 }
 
 class TransactionManager extends ChangeNotifier {
-    // Fetch reference data from backend (embedding, waybillId, waybillDetails)
-    Future<bool> getReferenceDataFromBackend(String transactionId) async {
-      try {
-        final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$transactionId/reference');
-        final response = await http.get(url);
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          _embedding = (data['embedding'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList();
-          _waybillId = data['waybillId'] as String?;
-          _waybillDetails = data['waybillDetails'] as String?;
-          notifyListeners();
-          return true;
-        } else {
-          debugPrint('Failed to fetch reference data. Status: ${response.statusCode}');
-          debugPrint('Response: ${response.body}');
-          return false;
-        }
-      } catch (e) {
-        debugPrint('Error fetching reference data: $e');
+  // Fetch reference data from backend (embedding, waybillId, waybillDetails)
+  Future<bool> getReferenceDataFromBackend(String transactionId) async {
+    try {
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$transactionId/reference',
+      );
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _embedding = (data['embedding'] as List<dynamic>?)
+            ?.map((e) => (e as num).toDouble())
+            .toList();
+        _waybillId = data['waybillId'] as String?;
+        _waybillDetails = data['waybillDetails'] as String?;
+        notifyListeners();
+        return true;
+      } else {
+        debugPrint(
+          'Failed to fetch reference data. Status: ${response.statusCode}',
+        );
+        debugPrint('Response: ${response.body}');
         return false;
       }
+    } catch (e) {
+      debugPrint('Error fetching reference data: $e');
+      return false;
     }
+  }
 
-    // Finalize transaction by ID (marks as verified)
-    Future<bool> finalizeTransactionById(String transactionId) async {
-      try {
-        final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$transactionId/finalize');
-        final response = await http.post(url);
-        if (response.statusCode == 200) {
-          debugPrint('Transaction finalized successfully: $transactionId');
-          debugPrint('Response: ${response.body}');
-          notifyListeners();
-          return true;
-        } else {
-          debugPrint('Failed to finalize transaction. Status: ${response.statusCode}');
-          debugPrint('Response: ${response.body}');
-          return false;
-        }
-      } catch (e) {
-        debugPrint('Error finalizing transaction: $e');
+  // Finalize transaction by ID (marks as verified)
+  Future<bool> finalizeTransactionById(String transactionId) async {
+    try {
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$transactionId/finalize',
+      );
+      final response = await http.post(url);
+      if (response.statusCode == 200) {
+        debugPrint('Transaction finalized successfully: $transactionId');
+        debugPrint('Response: ${response.body}');
+        notifyListeners();
+        return true;
+      } else {
+        debugPrint(
+          'Failed to finalize transaction. Status: ${response.statusCode}',
+        );
+        debugPrint('Response: ${response.body}');
         return false;
       }
+    } catch (e) {
+      debugPrint('Error finalizing transaction: $e');
+      return false;
     }
+  }
 
-    // Delete transaction by ID
-    Future<bool> deleteTransactionById(String transactionId) async {
-      try {
-        final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$transactionId');
-        final response = await http.delete(url);
-        if (response.statusCode == 200) {
-          debugPrint('Transaction deleted successfully: $transactionId');
-          debugPrint('Response: ${response.body}');
-          // Clear local data after successful deletion
-          _transactionId = null;
-          _lockerId = null;
-          _waybillId = null;
-          _waybillDetails = null;
-          _embedding = null;
-          _auditData = null;
-          notifyListeners();
-          return true;
-        } else {
-          debugPrint('Failed to delete transaction. Status: ${response.statusCode}');
-          debugPrint('Response: ${response.body}');
-          return false;
-        }
-      } catch (e) {
-        debugPrint('Error deleting transaction: $e');
+  // Delete transaction by ID
+  Future<bool> deleteTransactionById(String transactionId) async {
+    try {
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$transactionId',
+      );
+      final response = await http.delete(url);
+      if (response.statusCode == 200) {
+        debugPrint('Transaction deleted successfully: $transactionId');
+        debugPrint('Response: ${response.body}');
+        // Clear local data after successful deletion
+        _transactionId = null;
+        _lockerId = null;
+        _waybillId = null;
+        _waybillDetails = null;
+        _embedding = null;
+        _auditData = null;
+        notifyListeners();
+        return true;
+      } else {
+        debugPrint(
+          'Failed to delete transaction. Status: ${response.statusCode}',
+        );
+        debugPrint('Response: ${response.body}');
         return false;
       }
+    } catch (e) {
+      debugPrint('Error deleting transaction: $e');
+      return false;
     }
+  }
 
-    // Lock locker by ID via backend (MQTT)
-    Future<bool> lockLockerById(String lockerId) async {
-      try {
-        final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$lockerId/lock');
-        final response = await http.post(url);
-        if (response.statusCode == 200) {
-          debugPrint('Locker lock command sent successfully: $lockerId');
-          debugPrint('Response: ${response.body}');
-          return true;
-        } else {
-          debugPrint('Failed to send locker lock command. Status: ${response.statusCode}');
-          debugPrint('Response: ${response.body}');
-          return false;
-        }
-      } catch (e) {
-        debugPrint('Error sending locker lock command: $e');
+  // Lock locker by ID via backend (MQTT)
+  Future<bool> lockLockerById(String lockerId) async {
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$lockerId/lock');
+      final response = await http.post(url);
+      if (response.statusCode == 200) {
+        debugPrint('Locker lock command sent successfully: $lockerId');
+        debugPrint('Response: ${response.body}');
+        return true;
+      } else {
+        debugPrint(
+          'Failed to send locker lock command. Status: ${response.statusCode}',
+        );
+        debugPrint('Response: ${response.body}');
         return false;
       }
+    } catch (e) {
+      debugPrint('Error sending locker lock command: $e');
+      return false;
     }
+  }
+
   TransactionData? _auditData;
   String? _transactionId; // MongoDB _id
   String? _lockerId;
@@ -310,7 +327,7 @@ class TransactionManager extends ChangeNotifier {
       'waybill_id': waybillId,
       'waybill_details': waybillDetails,
       'image_embedding_vector': embedding,
-      
+
       // Image path (optional)
       if (imagePath != null) 'image_path': imagePath,
     };
@@ -350,18 +367,26 @@ class TransactionManager extends ChangeNotifier {
       return false;
     }
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$_transactionId/reference');
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$_transactionId/reference',
+      );
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         _waybillId = data['waybillId'] as String?;
         _waybillDetails = data['waybillDetails'] as String?;
-        _embedding = (data['embedding'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList();
-        debugPrint('Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding?.length ?? 0}');
+        _embedding = (data['embedding'] as List<dynamic>?)
+            ?.map((e) => (e as num).toDouble())
+            .toList();
+        debugPrint(
+          'Reference data fetched: Waybill ID: $_waybillId, Embedding length: ${_embedding?.length ?? 0}',
+        );
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to fetch reference data. Status: ${response.statusCode}');
+        debugPrint(
+          'Failed to fetch reference data. Status: ${response.statusCode}',
+        );
         debugPrint('Response: ${response.body}');
         return false;
       }
@@ -374,11 +399,15 @@ class TransactionManager extends ChangeNotifier {
   // Finalize transaction (mark as claimed) using backend endpoint
   Future<bool> finalizeTransaction() async {
     if (_transactionId == null) {
-      debugPrint('Error: Cannot finalize transaction. No transaction ID available.');
+      debugPrint(
+        'Error: Cannot finalize transaction. No transaction ID available.',
+      );
       return false;
     }
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$_transactionId/finalize');
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$_transactionId/finalize',
+      );
       final response = await http.post(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -388,7 +417,9 @@ class TransactionManager extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to finalize transaction. Status: ${response.statusCode}');
+        debugPrint(
+          'Failed to finalize transaction. Status: ${response.statusCode}',
+        );
         debugPrint('Response: ${response.body}');
         return false;
       }
@@ -401,11 +432,15 @@ class TransactionManager extends ChangeNotifier {
   // Delete/rollback transaction using backend endpoint
   Future<bool> deleteTransaction() async {
     if (_transactionId == null) {
-      debugPrint('Error: Cannot delete transaction. No transaction ID available.');
+      debugPrint(
+        'Error: Cannot delete transaction. No transaction ID available.',
+      );
       return false;
     }
     try {
-      final url = Uri.parse('${ApiConfig.baseUrl}/api/transaction/$_transactionId');
+      final url = Uri.parse(
+        '${ApiConfig.baseUrl}/api/transaction/$_transactionId',
+      );
       final response = await http.delete(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -421,7 +456,9 @@ class TransactionManager extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to delete transaction. Status: ${response.statusCode}');
+        debugPrint(
+          'Failed to delete transaction. Status: ${response.statusCode}',
+        );
         debugPrint('Response: ${response.body}');
         return false;
       }
