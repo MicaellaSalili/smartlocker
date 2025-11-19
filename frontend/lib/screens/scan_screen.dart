@@ -9,7 +9,7 @@ import 'package:path/path.dart' as path;
 import '../services/tflite_processor.dart';
 import '../services/transaction_manager.dart';
 import '../services/text_recognition_service.dart';
-import 'new_live_screen.dart';
+import 'live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   final String? lockerId;
@@ -980,7 +980,7 @@ class _ScanScreenState extends State<ScanScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const NewLiveScreen(),
+                              builder: (_) => const LiveScreen(),
                             ),
                           );
                         },

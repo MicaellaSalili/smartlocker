@@ -264,13 +264,14 @@ class TransactionManager extends ChangeNotifier {
   }
 
   // Log transaction data with locker ID, waybill info and embedding
-  Future<void> logTransactionData({
-    required String lockerId,
-    required String waybillId,
-    required String waybillDetails,
-    required List<double> embedding,
-    String? imagePath, // Optional image file path
-  }) async {
+  Future<bool> logTransactionData({
+      required String lockerId,
+      required String waybillId,
+      required String waybillDetails,
+      required List<double> embedding,
+      String? imagePath, // Optional image file path
+    }) async {
+        bool success = false;
     _lockerId = lockerId;
     _waybillId = waybillId;
     _waybillDetails = waybillDetails;
@@ -302,7 +303,7 @@ class TransactionManager extends ChangeNotifier {
       if (_waybillId == null) debugPrint('- Waybill ID');
       if (_waybillDetails == null) debugPrint('- Waybill details');
       if (_embedding == null) debugPrint('- Image embedding');
-      return;
+      return false;
     }
 
     debugPrint('📋 Transaction Data Summary:');
@@ -349,15 +350,19 @@ class TransactionManager extends ChangeNotifier {
         debugPrint('Transaction logged successfully: $waybillId');
         debugPrint('Transaction ID: $_transactionId');
         debugPrint('Response: ${response.body}');
+        success = true;
       } else {
         debugPrint('Failed to log transaction. Status: ${response.statusCode}');
         debugPrint('Response: ${response.body}');
+        success = false;
       }
     } catch (e) {
       debugPrint('Error logging transaction: $e');
+      success = false;
     }
 
     notifyListeners();
+    return success;
   }
 
   // Fetch reference data from backend and update local state
