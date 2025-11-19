@@ -584,12 +584,10 @@ class _LiveScreenState extends State<LiveScreen> {
       _showGreenFrame = false;
     });
 
-    // Save transaction to database before finalizing
     final transactionManager = Provider.of<TransactionManager>(
       context,
       listen: false,
     );
-    // Debug print all required fields
     debugPrint('--- TransactionManager fields before saving ---');
     debugPrint('auditData: ${transactionManager.auditData}');
     debugPrint('lockerId: ${transactionManager.lockerId}');
@@ -599,6 +597,10 @@ class _LiveScreenState extends State<LiveScreen> {
     debugPrint('---------------------------------------------');
 
     bool transactionSaved = false;
+    bool transactionFinalized = false;
+    bool lockerLocked = false;
+
+    // Step 1: Log transaction
     if (transactionManager.auditData == null) {
       debugPrint('❌ Missing recipient info (auditData). Please set recipient info before saving.');
     } else if (transactionManager.lockerId == null) {
@@ -618,28 +620,28 @@ class _LiveScreenState extends State<LiveScreen> {
       );
       if (transactionSaved) {
         debugPrint('✅ Transaction data saved successfully.');
+        // Step 2: Finalize transaction
+        transactionFinalized = await _finalizeTransactionWithResult();
+        if (transactionFinalized) {
+          debugPrint('✅ Transaction finalized successfully.');
+          // Step 3: Lock locker
+          lockerLocked = await transactionManager.lockLockerById(transactionManager.lockerId!);
+          if (lockerLocked) {
+            debugPrint('✅ Locker locked successfully');
+          } else {
+            debugPrint('❌ Failed to lock locker');
+          }
+        } else {
+          debugPrint('❌ Transaction not finalized. Locker not locked.');
+        }
       } else {
         debugPrint('❌ Transaction data failed to save.');
+        // Show user-facing message if transaction log fails
+        setState(() {
+          _currentStepTitle = 'Transaction Error';
+          _currentInstructions = '❌ Transaction not finalized. Locker not locked. Please try again.';
+        });
       }
-    }
-
-    // Finalize transaction only if transaction was saved
-    if (transactionSaved) {
-      await _finalizeTransaction();
-    } else {
-      debugPrint('❌ Transaction not finalized because save failed.');
-    }
-
-    // Lock the locker after verification only if transaction was saved
-    if (transactionSaved && transactionManager.lockerId != null) {
-      final locked = await transactionManager.lockLockerById(transactionManager.lockerId!);
-      if (locked) {
-        debugPrint('✅ Locker locked successfully');
-      } else {
-        debugPrint('❌ Failed to lock locker');
-      }
-    } else if (!transactionSaved) {
-      debugPrint('❌ Locker not locked because transaction was not saved.');
     }
   }
 
@@ -811,24 +813,30 @@ class _LiveScreenState extends State<LiveScreen> {
     return dotProduct / (math.sqrt(normA) * math.sqrt(normB));
   }
 
-  Future<void> _finalizeTransaction() async {
+  Future<bool> _finalizeTransactionWithResult() async {
     try {
       final transactionManager = Provider.of<TransactionManager>(
         context,
         listen: false,
       );
-
       if (transactionManager.transactionId != null) {
         final success = await transactionManager.finalizeTransactionById(
           transactionManager.transactionId!,
         );
-
         if (success) {
           debugPrint('✅ Transaction finalized successfully');
+          return true;
+        } else {
+          debugPrint('❌ Transaction finalization failed');
+          return false;
         }
+      } else {
+        debugPrint('❌ No transaction ID available for finalization');
+        return false;
       }
     } catch (e) {
       debugPrint('Error finalizing transaction: $e');
+      return false;
     }
   }
 
