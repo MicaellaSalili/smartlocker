@@ -9,7 +9,7 @@ import 'package:path/path.dart' as path;
 import '../services/tflite_processor.dart';
 import '../services/transaction_manager.dart';
 import '../services/text_recognition_service.dart';
-import 'live_screen.dart';
+import 'new_live_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   final String? lockerId;
@@ -976,14 +976,14 @@ class _ScanScreenState extends State<ScanScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const LiveScreen(),
-                            ),
-                          );
-                        },
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NewLiveScreen(),
+                              ),
+                            );
+                          },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4285F4),
                           padding: const EdgeInsets.symmetric(vertical: 16),

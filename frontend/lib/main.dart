@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:smacker/screens/new_live_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/input_details_screen.dart';
 import 'screens/scan_screen.dart';
-import 'screens/live_screen.dart';
 import 'screens/text_recognition_screen.dart';
 import 'screens/signup/registration_screen.dart';
 import 'services/transaction_manager.dart';
@@ -34,7 +34,7 @@ class MainApp extends StatelessWidget {
           '/home': (context) => const HomeScreen(),
           '/input_details': (context) => const InputDetailsScreen(),
           '/scan': (context) => const ScanScreen(),
-          '/live': (context) => const LiveScreen(),
+          '/live': (context) => const NewLiveScreen(),
           '/text_recognition': (context) => const TextRecognitionScreen(),
           '/signup_personal': (context) => const RegistrationScreen(),
         },

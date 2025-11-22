@@ -30,3 +30,4 @@ flutter:
     - assets/guide.png
     - assets/steps/
     - assets/models/
+    - assets/models/yolov8_model.tflite
