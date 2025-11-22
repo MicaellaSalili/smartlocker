@@ -63,38 +63,65 @@ class TFLiteProcessor {
 
   /// Loads the TFLite model from assets/models/model_128.tflite
   static Future<void> loadModel() async {
-    if (_interpreter != null) return;
-    final interpreter = await Interpreter.fromAsset('assets/models/model_128.tflite');
+    if (_interpreter != null) {
+      print('✅ [MODEL] Embedding model already loaded');
+      return;
+    }
+    print('📥 [MODEL] Loading embedding model...');
+    final interpreter = await Interpreter.fromAsset(
+      'assets/models/model_128.tflite',
+    );
     interpreter.allocateTensors();
     _interpreter = interpreter;
+
+    // Debug: Print tensor shapes
+    final inputShape = interpreter.getInputTensor(0).shape;
+    final outputShape = interpreter.getOutputTensor(0).shape;
+    print('✅ [MODEL] Embedding model loaded');
+    print('   Input shape: $inputShape');
+    print('   Output shape: $outputShape');
   }
 
   /// Loads the YOLOv8 detection model from assets/models/yolov8_model.tflite
   static Future<void> loadYoloModel() async {
-    if (_detectionInterpreter != null) return;
-    final interpreter = await Interpreter.fromAsset('assets/models/yolov8_model.tflite');
-    interpreter.allocateTensors();
-    _detectionInterpreter = interpreter;
+    if (_detectionInterpreter != null) {
+      print('✅ [YOLO] Detection model already loaded');
+      return;
+    }
+    print('📥 [YOLO] Loading YOLOv8 detection model...');
+    try {
+      final interpreter = await Interpreter.fromAsset(
+        'assets/models/yolov8_model.tflite',
+      );
+      interpreter.allocateTensors();
+      _detectionInterpreter = interpreter;
+
+      // Debug: Print tensor shapes
+      final inputShape = interpreter.getInputTensor(0).shape;
+      final outputShape = interpreter.getOutputTensor(0).shape;
+      print('✅ [YOLO] Detection model loaded');
+      print('   Input shape: $inputShape');
+      print('   Output shape: $outputShape');
+    } catch (e) {
+      print('❌ [YOLO] Failed to load model: $e');
+      print('   Check that assets/models/yolov8_model.tflite exists');
+      rethrow;
+    }
   }
 
   /// Preprocesses the image for MobileNetV2: resize to 128x128, normalize to [-1, 1], flatten to Float32List
   static Float32List _processImageForModel(img.Image image) {
     final resized = img.copyResize(image, width: 128, height: 128);
-    final input = Float32List(1 * 128 * 128 * 3);
+    final input = Float32List(128 * 128 * 3);
+    // Use raw bytes (RGBA) to extract RGB reliably across image package versions
+    final bytes = resized.getBytes();
     int i = 0;
     for (int y = 0; y < 128; y++) {
       for (int x = 0; x < 128; x++) {
-        final pixel = resized.getPixel(x, y);
-        int r, g, b;
-        if (pixel is int) {
-          r = pixel.r.toInt();
-          g = pixel.g.toInt();
-          b = pixel.b.toInt();
-        } else {
-          r = pixel.r.toInt();
-          g = pixel.g.toInt();
-          b = pixel.b.toInt();
-        }
+        final int base = (y * 128 + x) * 4; // RGBA format
+        final int r = bytes[base];
+        final int g = bytes[base + 1];
+        final int b = bytes[base + 2];
         input[i++] = (r / 127.5) - 1.0;
         input[i++] = (g / 127.5) - 1.0;
         input[i++] = (b / 127.5) - 1.0;
@@ -257,54 +284,103 @@ class TFLiteProcessor {
     final image = img.decodeImage(imageBytes);
     if (image == null) throw Exception('Failed to decode image');
     final inputTensor = _processImageForModel(image);
-    final outputTensor = List<double>.filled(128, 0.0).reshape([1, 128]);
-    _interpreter!.run(inputTensor.reshape([1, 128, 128, 3]), outputTensor);
-    return List<double>.from(outputTensor[0]);
+    final outputTensor = Float32List(128);
+    _interpreter!.run(inputTensor, outputTensor);
+    print('✅ Embedding generated: ${outputTensor.sublist(0, 5)}...');
+    return List<double>.from(outputTensor);
   }
 
   /// Detects objects using YOLOv8 model
-  /// Returns list of detections with class, confidence, and bounding box
-  static Future<List<Map<String, dynamic>>> detectYoloObjects(img.Image image) async {
+  /// Returns list of detections with class, confidence, and bounding box (normalized 0-1)
+  static Future<List<Map<String, dynamic>>> detectYoloObjects(
+    img.Image image,
+  ) async {
+    print('🔍 [YOLO] Starting detection...');
     await loadYoloModel();
-    // Resize image to model input size, e.g., 640x640 for YOLOv8
+
+    // Store original dimensions for coordinate normalization
+    final origWidth = image.width;
+    final origHeight = image.height;
+    print('📐 [YOLO] Original image: ${origWidth}x${origHeight}');
+
+    // Resize image to YOLOv8 input size (640x640)
     final resized = img.copyResize(image, width: 640, height: 640);
-    final input = Float32List(1 * 640 * 640 * 3);
+    final input = Float32List(640 * 640 * 3);
+
+    // Use raw bytes for reliable preprocessing
+    final bytes = resized.getBytes();
     int i = 0;
     for (int y = 0; y < 640; y++) {
       for (int x = 0; x < 640; x++) {
-        final pixel = resized.getPixel(x, y);
-        int r = pixel.r.toInt();
-        int g = pixel.g.toInt();
-        int b = pixel.b.toInt();
-        input[i++] = r / 255.0;
-        input[i++] = g / 255.0;
-        input[i++] = b / 255.0;
+        final int base = (y * 640 + x) * 4; // RGBA
+        input[i++] = bytes[base] / 255.0; // R
+        input[i++] = bytes[base + 1] / 255.0; // G
+        input[i++] = bytes[base + 2] / 255.0; // B
       }
     }
-    // Assume output shape [1, num_detections, 6] for [x,y,w,h,conf,class]
-    // Adjust based on actual model export
-    final output = List<List<double>>.filled(1, List<double>.filled(8400 * 6, 0.0)); // Example for 8400 detections
-    _detectionInterpreter!.run(input.reshape([1, 640, 640, 3]), output);
+    print('✅ [YOLO] Input tensor prepared: ${input.length} values');
+
+    // YOLOv8 output: [1, 84, 8400] or [1, 8400, 84] depending on export
+    // 84 = 4 (bbox) + 80 (classes). For 2 classes: [1, 6, 8400] or [1, 8400, 6]
+    // Assuming [1, 8400, 6] format: each detection = [x, y, w, h, conf, class]
+    final output = Float32List(8400 * 6);
+
+    try {
+      _detectionInterpreter!.run(input, output);
+      print(
+        '✅ [YOLO] Inference complete. Output tensor: ${output.length} values',
+      );
+    } catch (e) {
+      print('❌ [YOLO] Inference failed: $e');
+      return [];
+    }
+
+    // Parse detections
     List<Map<String, dynamic>> detections = [];
+    const double confThreshold = 0.5;
+
     for (int i = 0; i < 8400; i++) {
-      double conf = output[0][i * 6 + 4];
-      if (conf > 0.5) { // Threshold
-        double x = output[0][i * 6];
-        double y = output[0][i * 6 + 1];
-        double w = output[0][i * 6 + 2];
-        double h = output[0][i * 6 + 3];
-        int cls = output[0][i * 6 + 5].toInt();
-        String className = cls == 0 ? 'package' : 'locker'; // Assuming 0=package, 1=locker
+      final int base = i * 6;
+      final double conf = output[base + 4];
+
+      if (conf > confThreshold) {
+        final double cx = output[base]; // center x
+        final double cy = output[base + 1]; // center y
+        final double w = output[base + 2]; // width
+        final double h = output[base + 3]; // height
+        final int cls = output[base + 5].round();
+
+        // Convert center format to corner format and normalize to 0-1
+        final double x = (cx - w / 2) / 640.0; // left
+        final double y = (cy - h / 2) / 640.0; // top
+        final double width = w / 640.0;
+        final double height = h / 640.0;
+
+        // Map class ID to name
+        final String className = cls == 0
+            ? 'package'
+            : cls == 1
+            ? 'locker'
+            : 'unknown';
+
         detections.add({
           'class': className,
           'confidence': conf,
-          'x': x,
-          'y': y,
-          'width': w,
-          'height': h,
+          'x': x.clamp(0.0, 1.0),
+          'y': y.clamp(0.0, 1.0),
+          'width': width.clamp(0.0, 1.0),
+          'height': height.clamp(0.0, 1.0),
         });
       }
     }
+
+    print('📦 [YOLO] Detections found: ${detections.length}');
+    for (var det in detections.take(3)) {
+      print(
+        '   • ${det['class']}: ${(det['confidence'] * 100).toStringAsFixed(1)}% at (${det['x']}, ${det['y']})',
+      );
+    }
+
     return detections;
   }
 
@@ -322,12 +398,13 @@ class TFLiteProcessor {
 
     // Check for locker detection
     for (var box in boundingBoxes) {
-      if (box['class'] == 'locker_frame' && (box['confidence'] as double) >= 0.85) {
+      if (box['class'] == 'locker_frame' &&
+          (box['confidence'] as double) >= 0.85) {
         lockerDetected = true;
         break;
       }
     }
-    
+
     // b) TFLite Model 2 (Embedding Generation) - real embedding from cropped package image
     List<double> liveEmbedding;
     try {
@@ -341,19 +418,25 @@ class TFLiteProcessor {
         int y = (packageBox['y'] as double).round();
         int w = (packageBox['width'] as double).round();
         int h = (packageBox['height'] as double).round();
-        final cropped = img.copyCrop(fullImage, x: x, y: y, width: w, height: h);
+        final cropped = img.copyCrop(
+          fullImage,
+          x: x,
+          y: y,
+          width: w,
+          height: h,
+        );
         final inputTensor = _processImageForModel(cropped);
-        final outputTensor = List<double>.filled(128, 0.0).reshape([1, 128]);
+        final outputTensor = Float32List(128);
         await loadModel();
-        _interpreter!.run(inputTensor.reshape([1, 128, 128, 3]), outputTensor);
-        liveEmbedding = List<double>.from(outputTensor[0]);
+        _interpreter!.run(inputTensor, outputTensor);
+        liveEmbedding = List<double>.from(outputTensor);
       } else {
         liveEmbedding = List<double>.filled(128, 0.0);
       }
     } catch (e) {
       liveEmbedding = List<double>.filled(128, 0.0);
     }
-    
+
     // c) OCR - live waybill details
     final liveWaybillDetails = ''; // Will be populated by actual OCR
 
