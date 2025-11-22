@@ -49,94 +49,48 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   }
 
   Future<void> _loadReferenceData() async {
-    final transactionManager = Provider.of<TransactionManager>(
-      context,
-      listen: false,
-    );
+    final transactionManager = Provider.of<TransactionManager>(context, listen: false);
     _waybillId = transactionManager.waybillId;
     _referenceEmbedding = transactionManager.embedding;
   }
 
   void _startBarcodeDetection() {
     final barcodeScanner = BarcodeScanner();
-    bool isProcessing = false;
-    int frameCount = 0;
-
     _cameraController!.startImageStream((image) async {
-      if (_currentStep != 0 || isProcessing) return;
-      frameCount++;
-      if (frameCount % 10 != 0) return; // Process every 10th frame
-
-      isProcessing = true;
-      print('📷 [BARCODE] Processing frame $frameCount...');
-
-      try {
-        final inputImage = TFLiteProcessor.convertCameraImageToInputImage(
-          image,
-          _cameras![0],
-          0,
-        );
-        final barcodes = await barcodeScanner.processImage(inputImage);
-
-        if (barcodes.isNotEmpty) {
-          print('📊 [BARCODE] Found ${barcodes.length} barcode(s)');
+      if (_currentStep != 0) return;
+      final inputImage = TFLiteProcessor.convertCameraImageToInputImage(image, _cameras![0], 0);
+      final barcodes = await barcodeScanner.processImage(inputImage);
+      for (final barcode in barcodes) {
+        if (barcode.rawValue == _waybillId) {
+          setState(() {
+            _currentStep = 1;
+            _instruction = 'Position the package for verification';
+          });
+          _startPackageVerification();
+          break;
         }
-
-        for (final barcode in barcodes) {
-          if (barcode.rawValue == _waybillId) {
-            print('✅ [BARCODE] Match! Moving to package verification.');
-            _cameraController!.stopImageStream();
-            setState(() {
-              _currentStep = 1;
-              _instruction = 'Position the package for verification';
-            });
-            _startPackageVerification();
-            break;
-          }
-        }
-      } catch (e) {
-        print('❌ [ERROR] Barcode processing failed: $e');
-      } finally {
-        isProcessing = false;
       }
     });
   }
 
   void _startPackageVerification() {
-    int checkCount = 0;
     Timer.periodic(Duration(seconds: 1), (timer) async {
       if (_currentStep != 1) {
         timer.cancel();
         return;
       }
-      checkCount++;
-      print('\n📦 [VERIFY] Package verification attempt $checkCount...');
-
-      try {
-        final image = await _cameraController!.takePicture();
-        final bytes = await image.readAsBytes();
-        final embedding = await TFLiteProcessor.generateEmbedding(bytes);
-        final similarity = _calculateCosineSimilarity(
-          embedding,
-          _referenceEmbedding!,
-        );
-
-        print(
-          '📊 [VERIFY] Similarity: ${(similarity * 100).toStringAsFixed(1)}% (threshold: 75%)',
-        );
-
-        if (similarity >= 0.75) {
-          print('✅ [VERIFY] Package verified! Starting motion tracking.');
-          setState(() {
-            _currentStep = 2;
-            _instruction = 'Move the package towards the locker';
-          });
-          _lockFocus();
-          _startMotionTracking();
-          timer.cancel();
-        }
-      } catch (e) {
-        print('❌ [ERROR] Verification failed: $e');
+      final image = await _cameraController!.takePicture();
+      final bytes = await image.readAsBytes();
+      final embedding = await TFLiteProcessor.generateEmbedding(bytes);
+      final similarity = _calculateCosineSimilarity(embedding, _referenceEmbedding!);
+      if (similarity >= 0.75) {
+        setState(() {
+          _currentStep = 2;
+          _instruction = 'Move the package towards the locker';
+        });
+        _lockFocus();
+        _startMotionTracking();
+        timer.cancel();
       }
     });
   }
@@ -148,75 +102,42 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   void _startMotionTracking() {
     int frameCount = 0;
-    bool isProcessing = false;
-
     _cameraController!.startImageStream((image) async {
-      if (_currentStep != 2 || isProcessing) return;
+      if (_currentStep != 2) return;
       frameCount++;
       if (frameCount % 20 != 0) return; // Process every 20th frame
-
-      isProcessing = true;
-      print('\n📷 [FRAME] Processing frame $frameCount...');
-
-      try {
-        final img = TFLiteProcessor.convertCameraImageToImage(image);
-        final detections = await TFLiteProcessor.detectYoloObjects(img);
-
-        print('📊 [DETECTIONS] Found ${detections.length} objects');
-
-        // Get screen preview size (use MediaQuery from context)
-        final screenSize = MediaQuery.of(context).size;
-        final previewWidth = screenSize.width;
-        final previewHeight = screenSize.height;
-
-        print('📱 [SCREEN] Preview size: ${previewWidth}x${previewHeight}');
-
-        final packageDetection = detections.firstWhere(
-          (d) => d['class'] == 'package' && d['confidence'] > 0.5,
-          orElse: () => {},
+      final img = TFLiteProcessor.convertCameraImageToImage(image);
+      final detections = await TFLiteProcessor.detectYoloObjects(img);
+      final packageDetection = detections.firstWhere(
+        (d) => d['class'] == 'package' && d['confidence'] > 0.5,
+        orElse: () => {},
+      );
+      if (packageDetection.isNotEmpty) {
+        _trackedBox = Rect.fromLTWH(
+          packageDetection['x'] * image.width,
+          packageDetection['y'] * image.height,
+          packageDetection['width'] * image.width,
+          packageDetection['height'] * image.height,
         );
-
-        if (packageDetection.isNotEmpty) {
-          // CRITICAL FIX: Scale normalized coords (0-1) to SCREEN size, not camera image size
-          _trackedBox = Rect.fromLTWH(
-            packageDetection['x'] * previewWidth,
-            packageDetection['y'] * previewHeight,
-            packageDetection['width'] * previewWidth,
-            packageDetection['height'] * previewHeight,
-          );
-          _missCount = 0;
-          print(
-            '✅ [PACKAGE] Detected at ${_trackedBox!.left.toInt()},${_trackedBox!.top.toInt()} size ${_trackedBox!.width.toInt()}x${_trackedBox!.height.toInt()}',
-          );
-          setState(() {});
-        } else {
-          _missCount++;
-          print(
-            '⚠️ [MISS] Package not detected. Miss count: $_missCount/$maxMisses',
-          );
-          if (_missCount >= maxMisses) {
-            _showTrackingLostDialog();
-          }
+        _missCount = 0;
+        setState(() {});
+      } else {
+        _missCount++;
+        if (_missCount >= maxMisses) {
+          _showTrackingLostDialog();
         }
-
-        // Check for locker
-        final lockerDetection = detections.firstWhere(
-          (d) => d['class'] == 'locker' && d['confidence'] > 0.5,
-          orElse: () => {},
-        );
-
-        if (lockerDetection.isNotEmpty) {
-          print('✅ [LOCKER] Detected! Moving to final step.');
-          setState(() {
-            _currentStep = 3;
-            _instruction = 'Package detected in locker';
-          });
-          _cameraController!.stopImageStream();
-        }
-      } catch (e) {
-        print('❌ [ERROR] Frame processing failed: $e');
-      } finally {
-        isProcessing = false;
+      }
+      // Check for locker
+      final lockerDetection = detections.firstWhere(
+        (d) => d['class'] == 'locker' && d['confidence'] > 0.5,
+        orElse: () => {},
+      );
+      if (lockerDetection.isNotEmpty) {
+        setState(() {
+          _currentStep = 3;
+          _instruction = 'Package detected in locker';
+        });
+        _cameraController!.stopImageStream();
       }
     });
   }
@@ -291,15 +212,10 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                   top: 20,
                   left: 20,
                   child: Row(
-                    children: List.generate(
-                      4,
-                      (i) => Icon(
-                        i <= _currentStep
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        color: i <= _currentStep ? Colors.green : Colors.grey,
-                      ),
-                    ),
+                    children: List.generate(4, (i) => Icon(
+                      i <= _currentStep ? Icons.check_circle : Icons.radio_button_unchecked,
+                      color: i <= _currentStep ? Colors.green : Colors.grey,
+                    )),
                   ),
                 ),
               ],
