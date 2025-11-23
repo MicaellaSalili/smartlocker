@@ -44,7 +44,17 @@ flutter {
     source = "../.."
 }
 
+// NOTE: Removed global exclusion of `org.tensorflow` so TensorFlow Lite
+// runtime classes (used by flutter_vision plugin) can be packaged.
 dependencies {
-    // Google ML Kit Object Detection
-    implementation("com.google.mlkit:object-detection:17.0.2")
+    // TensorFlow Lite runtime (CPU)
+    implementation("org.tensorflow:tensorflow-lite:2.11.0")
+
+    // TensorFlow Lite GPU delegate (some plugins use GPU helper classes)
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.11.0")
+
+    // NOTE: Removed LiteRT to avoid duplicate TensorFlow classes.
+    // If you need LiteRT specifically, add it here and remove standard
+    // tensorflow-lite artifacts, but ensure versions do not duplicate.
 }
+

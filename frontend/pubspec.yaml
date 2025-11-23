@@ -12,13 +12,14 @@ dependencies:
   provider: ^6.1.5+1
   camera: ^0.10.6
   mobile_scanner: ^3.5.5
-  tflite_flutter: ^0.12.1
   image: ^4.1.7
   google_mlkit_text_recognition: ^0.12.0
   qr_flutter: ^4.1.0
   path_provider: ^2.1.1
   google_mlkit_barcode_scanning: ^0.12.0
   google_mlkit_object_detection: ^0.13.0
+  flutter_vision: 1.1.4
+  tflite_flutter: ^0.10.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -31,3 +32,4 @@ flutter:
     - assets/steps/
     - assets/models/
     - assets/models/yolov8_model.tflite
+    - assets/models/labels.txt

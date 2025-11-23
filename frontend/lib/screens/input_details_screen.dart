@@ -302,6 +302,9 @@ class _InputDetailsScreenState extends State<InputDetailsScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
+          // Ensure the scroll view adds padding when the keyboard is visible
+          // to avoid RenderFlex overflow when input fields are focused.
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Column(
             children: [
               // Header

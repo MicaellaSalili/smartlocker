@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'dart:async';
 import '../services/transaction_manager.dart';
 import '../services/tflite_processor.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'home_screen.dart';
 import 'view_transaction_screen.dart';
@@ -112,7 +111,7 @@ class _LiveScreenState extends State<LiveScreen> {
       if (_cameras != null && _cameras!.isNotEmpty) {
         _cameraController = CameraController(
           _cameras![0],
-          ResolutionPreset.max,
+          ResolutionPreset.low,
           enableAudio: false,
           imageFormatGroup: ImageFormatGroup.yuv420,
         );
@@ -296,7 +295,7 @@ class _LiveScreenState extends State<LiveScreen> {
       // Compare with reference waybill ID
       if (scannedBarcode == _scannedWaybillId) {
         _barcodeMatchFrames++;
-        debugPrint('✅ Barcode match! ${_barcodeMatchFrames}/1');
+        debugPrint('✅ Barcode match! $_barcodeMatchFrames/1');
 
         setState(() {
           _showGreenFrame = true;
@@ -466,8 +465,8 @@ class _LiveScreenState extends State<LiveScreen> {
             _matchStatus = 'Match';
             _currentSimilarity = similarity * 100;
             _detectionDiagnostics =
-                'Package: ${_packageInLockerFrames}/${requiredPackageInLockerFrames} | '
-                'Locker: ${_lockerFrameFrames}/${requiredLockerFrameFrames}';
+                'Package: $_packageInLockerFrames/$requiredPackageInLockerFrames | '
+                'Locker: $_lockerFrameFrames/$requiredLockerFrameFrames';
           } else if (!packageDetected && lockerDetected) {
             _showGreenFrame = false;
             _matchStatus = 'Package Missing';
@@ -494,8 +493,8 @@ class _LiveScreenState extends State<LiveScreen> {
             _lockerFrameFrames >= requiredLockerFrameFrames) {
           debugPrint(
             '✅ Both package and locker verified! '
-            'Package: ${_packageInLockerFrames}/${requiredPackageInLockerFrames}, '
-            'Locker: ${_lockerFrameFrames}/${requiredLockerFrameFrames}',
+            'Package: $_packageInLockerFrames/$requiredPackageInLockerFrames, '
+            'Locker: $_lockerFrameFrames/$requiredLockerFrameFrames',
           );
 
           // Stop locker verification
@@ -753,7 +752,7 @@ class _LiveScreenState extends State<LiveScreen> {
           });
 
           debugPrint(
-            'Motion tracking: ${_consecutiveMotionFrames}/$requiredMotionFrames',
+            'Motion tracking: $_consecutiveMotionFrames/$requiredMotionFrames',
           );
 
           if (_consecutiveMotionFrames >= requiredMotionFrames) {
@@ -990,7 +989,7 @@ class _LiveScreenState extends State<LiveScreen> {
                         ),
                         child: Text(
                           _currentStep == 4 && _showGreenFrame
-                              ? 'Verifying: Pkg ${_packageInLockerFrames}/${requiredPackageInLockerFrames} | Lkr ${_lockerFrameFrames}/${requiredLockerFrameFrames}'
+                              ? 'Verifying: Pkg $_packageInLockerFrames/$requiredPackageInLockerFrames | Lkr $_lockerFrameFrames/$requiredLockerFrameFrames'
                               : _showGreenFrame
                               ? 'Verifying: ${(_consecutiveDetections >= requiredFrames ? _consecutiveMotionFrames : _consecutiveDetections)}/${_currentStep == 3 ? requiredMotionFrames : requiredFrames}'
                               : 'Scanning...',
