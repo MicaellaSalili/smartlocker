@@ -5,14 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="abe09102-b503-4e45-b27a-89df65f2a0da" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/frontend/android/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/android/app/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/screens/input_details_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/screens/input_details_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/screens/live_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/screens/live_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/screens/new_live_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/screens/new_live_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/services/api_config.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/services/api_config.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/screens/detector_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/screens/detector_screen.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/lib/services/tflite_processor.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/services/tflite_processor.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pubspec.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/pubspec.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/qr-generator.html" beforeDir="false" afterPath="$PROJECT_DIR$/qr-generator.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

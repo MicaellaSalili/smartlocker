@@ -35,11 +35,12 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   // Tracking
   Rect? _trackedBox;
+  Rect? _smoothedBox;
   // Keep explicit package and locker boxes for overlap checks
   Rect? _packageBox;
   Rect? _lockerBox;
   int _missCount = 0;
-  static const int maxMisses = 5;
+  static const int maxMisses = 2;
   double? _lastDetectionConfidence;
   DateTime? _lastDetectionTime;
   String? _trackedLabel;
@@ -55,6 +56,9 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
   bool _detectedAny = false;
   String? _detectedAnyLabel;
   double? _detectedAnyConfidence;
+  // Consecutive-frame gating: require multiple valid package frames before showing
+  int _consecutivePackageFrames = 0;
+  static const int packageFrameThreshold = 2; // require 2 consecutive frames
   // Capture next frame for debugging (shows raw detection JSON)
   bool _captureNextFrame = false;
 
@@ -78,7 +82,7 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     if (_cameras == null || _cameras!.isEmpty) return;
 
     // Use high resolution (match ScanScreen) for better image quality
-    _cameraController = CameraController(_cameras![0], ResolutionPreset.low, enableAudio: false);
+    _cameraController = CameraController(_cameras![0], ResolutionPreset.high, enableAudio: false);
     await _cameraController!.initialize();
     if (!mounted) return;
     
@@ -173,8 +177,8 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
     // 2. Start new stream with YOLO logic
     bool isDetecting = false;
-    // Process at most once every this interval (approx 5 FPS)
-    const processingInterval = Duration(milliseconds: 200);
+    // Process at most once every this interval (higher update rate -> more responsive)
+    const processingInterval = Duration(milliseconds: 100);
     DateTime lastProcessed = DateTime.now().subtract(processingInterval);
 
     await _cameraController!.startImageStream((image) async {
@@ -243,7 +247,8 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     _lastRenderBoxes = [];
 
     // Canonical label sets and confidence threshold for this model
-    final Set<String> packageLabels = {'package', 'parcel', 'box', 'pack'};
+    // Only treat the exact 'package' model label as a package detection.
+    final Set<String> packageLabels = {'package'};
     final Set<String> lockerLabels = {'locker'};
     const double minConfidence = 0.45; // tune if needed
 
@@ -302,8 +307,13 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
     _detectedAnyLabel = null;
     _detectedAnyConfidence = null;
     try {
+      // Heuristics to reduce false positives (e.g., cables or tiny noise)
+      const double minAreaRatio = 0.02; // detection area must be >= 2% of frame
+      const double minAspect = 0.25; // width/height or height/width must be >= 0.25
+      const double maxAspect = 4.0; // avoid extremely long thin boxes
+
       for (final d in detections) {
-        final rawLabel = d['tag'] ?? d['label'] ?? d['name'] ?? d['class'];
+        final rawLabel = d['model_label'] ?? d['tag'] ?? d['label'] ?? d['name'] ?? d['class'];
         final label = rawLabel?.toString() ?? 'unknown';
         double? conf;
         try {
@@ -314,18 +324,30 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
         }
 
         final r = rectFromBoxRaw(d['box']);
-        _lastRenderBoxes.add({'rect': r, 'label': label, 'confidence': conf});
+        final area = (r?.width ?? 0.0) * (r?.height ?? 0.0);
+        final frameArea = imgW * imgH;
+        final areaRatio = frameArea > 0 ? (area / frameArea) : 0.0;
+        final aspect = (r?.width ?? 0.0) > 0 && (r?.height ?? 0.0) > 0 ? ((r?.width ?? 0.0) / (r?.height ?? 0.0)) : 1.0;
+        final aspectNorm = aspect >= 1.0 ? aspect : 1.0 / aspect; // treat tall/long symmetrically
 
-        if (conf != null) {
-          if (!_detectedAny || (_detectedAnyConfidence != null && conf > (_detectedAnyConfidence ?? 0.0))) {
+        final low = label.toLowerCase().trim();
+        final bool isPackageModel = packageLabels.contains(low);
+
+        // Decide whether this detection should be considered a valid "package"
+        final bool passesSize = areaRatio >= minAreaRatio;
+        final bool passesAspect = aspectNorm >= minAspect && aspectNorm <= maxAspect;
+        final bool isValidPackage = isPackageModel && (conf ?? 0.0) >= minConfidence && passesSize && passesAspect;
+
+        _lastRenderBoxes.add({'rect': r, 'label': label, 'confidence': conf, 'is_package': isValidPackage});
+
+        // Only promote valid package detections to the top banner
+        if (isValidPackage) {
+          final double c = conf ?? 0.0;
+          if (!_detectedAny || (_detectedAnyConfidence != null && c > (_detectedAnyConfidence ?? 0.0))) {
             _detectedAny = true;
             _detectedAnyLabel = label;
-            _detectedAnyConfidence = conf;
+            _detectedAnyConfidence = c;
           }
-        } else if (!_detectedAny) {
-          // If no confidences provided yet, still show first label
-          _detectedAny = true;
-          _detectedAnyLabel ??= label;
         }
       }
     } catch (e) {
@@ -343,126 +365,40 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
     // 1. Look for Package (Step 2)
     if (_currentStep == 2) {
-      // Support alternative keys for class label (tag/label/name/class)
-      Map<String, dynamic>? packageDetection;
-      String? packageLabel;
-      for (final d in detections) {
-        final rawLabel = d['tag'] ?? d['label'] ?? d['name'] ?? d['class'];
-        final label = rawLabel?.toString();
-        if (label == null) continue;
-        final low = label.toLowerCase().trim();
-
-        // Extract confidence if present (common formats: box[4] or score)
-        double conf = 0.0;
-        try {
-          if (d['box'] is List && (d['box'] as List).length > 4) {
-            conf = (d['box'][4] as num).toDouble();
-          } else if (d.containsKey('score')) {
-            conf = (d['score'] as num).toDouble();
-          }
-        } catch (_) {
-          conf = 0.0;
-        }
-
-        // Accept package detection only when label matches a known package class
-        // and confidence is above the threshold. This reduces false positives.
-        if (packageLabels.contains(low) && conf >= minConfidence) {
-          packageDetection = d.cast<String, dynamic>();
-          packageLabel = label;
-          break;
-        }
-        // Also accept some heuristic matches when confidence is high (fallback)
-        if (conf >= 0.85 && (low.contains('pack') || low.contains('box') || low.contains('parcel'))) {
-          packageDetection = d.cast<String, dynamic>();
-          packageLabel = label;
+      // Use validated render boxes (with is_package) to avoid re-parsing raw detections
+      Map<String, dynamic>? validatedPackageBox;
+      for (final rb in _lastRenderBoxes) {
+        if (rb['is_package'] == true) {
+          validatedPackageBox = rb;
           break;
         }
       }
 
-      if (packageDetection != null && packageDetection.isNotEmpty) {
-        final boxRaw = packageDetection['box']; // flexible formats supported
+      if (validatedPackageBox != null) {
+        // we saw a candidate package in this frame
+        _consecutivePackageFrames++;
+      } else {
+        _consecutivePackageFrames = 0;
+      }
 
-        double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-        double? conf;
+      if (_consecutivePackageFrames >= packageFrameThreshold && validatedPackageBox != null) {
+        final Rect pkgRect = validatedPackageBox['rect'] as Rect? ?? Rect.zero;
+        final double? conf = validatedPackageBox['confidence'] as double?;
+        final String? packageLabel = (validatedPackageBox['label'] as String?) ?? 'package';
 
-        try {
-          if (boxRaw is List && boxRaw.length >= 4) {
-            // Normalize vs pixel detection heuristics
-            final v0 = (boxRaw[0] as num).toDouble();
-            final v1 = (boxRaw[1] as num).toDouble();
-            final v2 = (boxRaw[2] as num).toDouble();
-            final v3 = (boxRaw[3] as num).toDouble();
-
-            // If values look normalized (<= 1.01) treat accordingly
-            final allNormalized = v0 <= 1.01 && v1 <= 1.01 && v2 <= 1.01 && v3 <= 1.01;
-
-            if (allNormalized) {
-              // Many YOLO implementations return [cx, cy, w, h] normalized
-              if (v2 <= 1.01 && v3 <= 1.01) {
-                final cx = v0 * imgW;
-                final cy = v1 * imgH;
-                final w = v2 * imgW;
-                final h = v3 * imgH;
-                x1 = cx - w / 2;
-                y1 = cy - h / 2;
-                x2 = cx + w / 2;
-                y2 = cy + h / 2;
-              } else {
-                // fallback: normalized x1,y1,x2,y2
-                x1 = v0 * imgW;
-                y1 = v1 * imgH;
-                x2 = v2 * imgW;
-                y2 = v3 * imgH;
-              }
-            } else {
-              // assume pixel coordinates x1,y1,x2,y2
-              x1 = v0;
-              y1 = v1;
-              x2 = v2;
-              y2 = v3;
-            }
-
-            if (boxRaw.length > 4 && boxRaw[4] != null) {
-              conf = (boxRaw[4] as num).toDouble();
-            }
-          } else if (boxRaw is Map) {
-            // Common map keys: x,y,w,h or left,top,right,bottom
-            if (boxRaw.containsKey('x') && boxRaw.containsKey('y') && boxRaw.containsKey('w') && boxRaw.containsKey('h')) {
-              final cx = (boxRaw['x'] as num).toDouble() * imgW;
-              final cy = (boxRaw['y'] as num).toDouble() * imgH;
-              final w = (boxRaw['w'] as num).toDouble() * imgW;
-              final h = (boxRaw['h'] as num).toDouble() * imgH;
-              x1 = cx - w / 2;
-              y1 = cy - h / 2;
-              x2 = cx + w / 2;
-              y2 = cy + h / 2;
-            } else if (boxRaw.containsKey('left') && boxRaw.containsKey('top') && boxRaw.containsKey('right') && boxRaw.containsKey('bottom')) {
-              x1 = (boxRaw['left'] as num).toDouble();
-              y1 = (boxRaw['top'] as num).toDouble();
-              x2 = (boxRaw['right'] as num).toDouble();
-              y2 = (boxRaw['bottom'] as num).toDouble();
-            }
-            if (boxRaw.containsKey('score')) conf = (boxRaw['score'] as num).toDouble();
-          }
-        } catch (e) {
-          debugPrint('Error parsing box: $e boxRaw=$boxRaw');
-        }
-
-        final pkgRect = Rect.fromLTRB(x1, y1, x2, y2);
-        // Store RAW coordinates and the detected label. We scale them in build()
         setState(() {
           _packageBox = pkgRect;
-          _trackedBox = pkgRect; // legacy field used by parts of the UI
+          _smoothedBox = _smoothBox(pkgRect, _smoothedBox, 0.95);
+          _trackedBox = _smoothedBox;
           _trackedLabel = packageLabel ?? _trackedLabel;
           _missCount = 0;
           _lastDetectionConfidence = conf;
           _lastDetectionTime = DateTime.now();
-          // mark that we saw the package; wait for locker next
           _packageDetected = true;
           _packageDetectedAt = DateTime.now();
-          debugPrint('NewLiveScreen: package detected -> $_trackedLabel conf=$conf');
+          debugPrint('NewLiveScreen: validated package detected -> $_trackedLabel conf=$conf frames=$_consecutivePackageFrames');
         });
-      } else {
+      } else if (validatedPackageBox == null) {
         _handleTrackingMiss();
       }
     }
@@ -561,17 +497,30 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
 
   void _handleTrackingMiss() {
     _missCount++;
-    if (_missCount >= maxMisses) {
+    final now = DateTime.now();
+    final timeSinceLast = _lastDetectionTime == null ? Duration(days: 365) : now.difference(_lastDetectionTime!);
+
+    // Clear more responsively: if we haven't seen a detection recently (~400ms)
+    // OR the miss counter exceeds a modest threshold, then clear the tracked box.
+    if (timeSinceLast > const Duration(milliseconds: 400) || _missCount > maxMisses) {
       setState(() {
         _trackedBox = null;
+        _smoothedBox = null;
+        // If we truly lost the package, clear package-detected state so the UI updates
+        _packageDetected = false;
+        _packageDetectedAt = null;
       });
-      
-      if (_missCount > maxMisses * 4) { // Wait longer before stopping completely
-         // Only stop if we really lost it
-         // _cameraController!.stopImageStream();
-         // _showTrackingLostDialog();
-      }
     }
+  }
+
+  Rect _smoothBox(Rect newBox, Rect? oldBox, double alpha) {
+    if (oldBox == null) return newBox;
+    return Rect.fromLTRB(
+      alpha * newBox.left + (1 - alpha) * oldBox.left,
+      alpha * newBox.top + (1 - alpha) * oldBox.top,
+      alpha * newBox.right + (1 - alpha) * oldBox.right,
+      alpha * newBox.bottom + (1 - alpha) * oldBox.bottom,
+    );
   }
 
   @override
@@ -712,29 +661,25 @@ class _NewLiveScreenState extends State<NewLiveScreen> {
                     // Bounding Box Overlay: render all latest detection boxes with badges
                     for (final rb in _lastRenderBoxes)
                       Positioned(
-                        left: (rb['rect'] as Rect).left * scaleX,
-                        top: (rb['rect'] as Rect).top * scaleY,
-                        width: (rb['rect'] as Rect).width * scaleX,
-                        height: (rb['rect'] as Rect).height * scaleY,
+                        left: ((rb['rect'] as Rect?)?.left ?? 0.0) * scaleX,
+                        top: ((rb['rect'] as Rect?)?.top ?? 0.0) * scaleY,
+                        width: ((rb['rect'] as Rect?)?.width ?? 0.0) * scaleX,
+                        height: ((rb['rect'] as Rect?)?.height ?? 0.0) * scaleY,
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: (rb['label'] as String).toLowerCase().contains('locker')
-                                  ? Colors.blue
-                                  : (rb['label'] as String).toLowerCase().contains('pack') || (rb['label'] as String).toLowerCase().contains('parcel')
-                                      ? Colors.green
-                                      : Colors.yellow,
+                              color: (rb['is_package'] == true)
+                                  ? Colors.green
+                                  : ((rb['label'] as String).toLowerCase().contains('locker') ? Colors.blue : Colors.yellow),
                               width: 3,
                             ),
                           ),
                           child: Align(
                             alignment: Alignment.topLeft,
                             child: Container(
-                              color: (rb['label'] as String).toLowerCase().contains('locker')
-                                  ? Colors.blue
-                                  : (rb['label'] as String).toLowerCase().contains('pack') || (rb['label'] as String).toLowerCase().contains('parcel')
-                                      ? Colors.green
-                                      : Colors.orange,
+                              color: (rb['is_package'] == true)
+                                  ? Colors.green
+                                  : ((rb['label'] as String).toLowerCase().contains('locker') ? Colors.blue : Colors.orange),
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
