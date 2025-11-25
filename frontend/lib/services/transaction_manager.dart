@@ -424,27 +424,71 @@ class TransactionManager extends ChangeNotifier {
     }
   }
 
+  // Deliver parcel after courier drop-off verification (marks as DELIVERED)
+  Future<bool> deliverParcel() async {
+    try {
+      if (_waybillId == null || _lockerId == null) {
+        debugPrint('❌ Cannot deliver: Missing waybill_id or locker_id');
+        return false;
+      }
+
+      final url = Uri.parse('${ApiConfig.baseUrl}/api/parcels/deliver');
+      
+      debugPrint('📤 Delivering parcel...');
+      debugPrint('   Waybill ID: $_waybillId');
+      debugPrint('   Locker ID: $_lockerId');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'waybill_id': _waybillId,
+          'locker_id': _lockerId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ Parcel delivered successfully - Status: DELIVERED');
+        return true;
+      } else {
+        debugPrint('❌ Failed to deliver parcel: ${response.statusCode}');
+        debugPrint('   Response: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error delivering parcel: $e');
+      return false;
+    }
+  }
+
   // Lock the locker door using backend endpoint
   Future<bool> lockLocker() async {
     if (_lockerId == null) {
-      debugPrint('Error: Cannot lock locker. No locker ID available.');
+      debugPrint('❌ Error: Cannot lock locker. No locker ID available.');
       return false;
     }
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/api/locker/$_lockerId/lock');
+      debugPrint('📡 Sending POST request to: $url');
+      
       final response = await http.post(url);
+      
+      debugPrint('📥 Response status: ${response.statusCode}');
+      debugPrint('📥 Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('Locker locked successfully: $_lockerId');
-        debugPrint('Response: ${response.body}');
+        debugPrint('✅ Locker locked successfully: $_lockerId');
+        debugPrint('   Backend confirmed: ${data['message']}');
         return true;
       } else {
-        debugPrint('Failed to lock locker. Status: ${response.statusCode}');
-        debugPrint('Response: ${response.body}');
+        debugPrint('❌ Failed to lock locker. Status: ${response.statusCode}');
+        debugPrint('   Response: ${response.body}');
         return false;
       }
     } catch (e) {
-      debugPrint('Error locking locker: $e');
+      debugPrint('❌ Error locking locker: $e');
+      debugPrint('   Check if backend server is running!');
       return false;
     }
   }

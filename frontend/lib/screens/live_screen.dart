@@ -10,13 +10,6 @@ import 'view_transaction_screen.dart';
 import 'home_screen.dart';
 import 'input_details_screen.dart';
 
-  int _currentStep = 0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
-  String _stepStatus = '';
-  int _scanProgress = 1;
-  int _scanTotal = 5;
-  bool _showDoorCountdown = false;
-  int _doorCountdown = 5;
-
 class LiveScreen extends StatefulWidget {
   const LiveScreen({super.key});
 
@@ -47,6 +40,14 @@ class _LiveScreenState extends State<LiveScreen> {
 
   int _stepDelayMs = 1000; // 1 second per step
   bool _stepAdvancing = false;
+
+  // BYPASS MODE: Skip straight to success after countdown
+  int _currentStep = 0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
+  String _stepStatus = '';
+  int _scanProgress = 1;
+  int _scanTotal = 5;
+  bool _showDoorCountdown = false;
+  int _doorCountdown = 5;
 
   @override
   void initState() {
@@ -143,19 +144,30 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   /// Process a single camera frame for verification
+  /// BYPASS MODE: Automatically advance steps without actual verification
   Future<void> _processFrame(CameraImage frame) async {
-    // Only advance step if not already advancing
+    // BYPASS: Skip all verification, just advance steps automatically
     if (mounted && !_stepAdvancing) {
       _stepAdvancing = true;
+      debugPrint('🔄 BYPASS: Current step: $_currentStep');
       setState(() {
         if (_currentStep < 7) {
           _currentStep++;
+          debugPrint('✅ BYPASS: Advanced to step $_currentStep');
         } else if (_currentStep == 7 && !_showDoorCountdown) {
+          debugPrint('🎯 BYPASS: Reached step 7, starting countdown');
           _startCloseDoorCountdown();
         }
       });
       await Future.delayed(Duration(milliseconds: _stepDelayMs));
       _stepAdvancing = false;
+    } else {
+      if (!mounted) {
+        debugPrint('⚠️ BYPASS: Widget not mounted');
+      }
+      if (_stepAdvancing) {
+        debugPrint('⚠️ BYPASS: Already advancing, skipping frame');
+      }
     }
   }
 
@@ -191,16 +203,16 @@ class _LiveScreenState extends State<LiveScreen> {
       if (_countdown > 1) {
         _countdown--; // Countdown logic updated to show 5-1
       } else {
-        // Countdown finished, hide popup and continue verifying step 6
+        // Countdown finished, finalize transaction and lock door
         timer.cancel();
         if (mounted) {
           setState(() {
             _showDoorCountdown = false;
-            // Return to live detection for verifying 6/6
-            // The verification loop will continue and show success screen after required frames
-            // Do not call _stopAndFinalize here
-            // Ensure _currentStep remains at 7 for 6/6 verification
           });
+          
+          // ✅ AUTOMATICALLY FINALIZE AND LOCK DOOR AFTER COUNTDOWN
+          debugPrint('🎯 Countdown complete - Automatically finalizing transaction and locking door');
+          _handleFinalizeDeposit();
         }
       }
     });
@@ -444,8 +456,8 @@ class _LiveScreenState extends State<LiveScreen> {
       );
     }
 
-    // Call finalizeTransaction
-    final success = await transactionManager.finalizeTransaction();
+    // Call deliverParcel to mark status as DELIVERED (courier drop-off)
+    final success = await transactionManager.deliverParcel();
 
     // Close loading indicator
     if (mounted) {
@@ -587,17 +599,29 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   Future<void> _sendLockCommand() async {
+    debugPrint('\n${'=' * 60}');
+    debugPrint('🔒 ATTEMPTING TO LOCK LOCKER AFTER VERIFICATION');
+    debugPrint('=' * 60);
+    
     final transactionManager = Provider.of<TransactionManager>(
       context,
       listen: false,
     );
+    
+    debugPrint('📋 Locker ID: ${transactionManager.lockerId}');
+    debugPrint('📋 Transaction ID: ${transactionManager.transactionId}');
+    debugPrint('🔄 Calling transactionManager.lockLocker()...');
+    
     final success = await transactionManager.lockLocker();
 
     if (success) {
-      debugPrint('✅ Lock command sent to ESP32 after successful verification');
+      debugPrint('✅ Lock command API call SUCCESSFUL');
+      debugPrint('✅ Backend should now send MQTT command to ESP32');
     } else {
-      debugPrint('⚠️  Failed to send lock command to ESP32');
+      debugPrint('❌ Lock command API call FAILED');
+      debugPrint('❌ Check backend server and network connection');
     }
+    debugPrint('=' * 60 + '\n');
   }
 
   void _showFinalSuccessDialog() {
@@ -931,6 +955,8 @@ class _LiveScreenState extends State<LiveScreen> {
                                 setState(() {
                                   _currentStep = 2;
                                 });
+                                // Start the image stream so _processFrame gets called for bypass
+                                _startLiveVerification();
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4285F4),

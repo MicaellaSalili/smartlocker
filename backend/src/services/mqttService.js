@@ -105,7 +105,10 @@ class MQTTService {
    */
   lockLocker(lockerId) {
     if (!this.isConnected || !this.client) {
-      console.error('❌ Cannot send lock command - MQTT not connected');
+      console.log('\n⚠️  MQTT NOT CONNECTED - Cannot send lock command');
+      console.log('   Locker ID: ' + lockerId);
+      console.log('   This is normal if ESP32 is offline or not connected to MQTT broker');
+      console.log('   For testing: You can manually trigger the lock from ESP32 side\n');
       return false;
     }
 
@@ -120,11 +123,17 @@ class MQTTService {
 
       const message = JSON.stringify(payload);
 
+      console.log('\n🔐 SENDING LOCK COMMAND VIA MQTT');
+      console.log('   Topic: ' + topic);
+      console.log('   Locker ID: ' + lockerId);
+      console.log('   Time: ' + new Date().toLocaleTimeString());
+
       this.client.publish(topic, message, { qos: 1, retain: false }, (error) => {
         if (error) {
           console.error(`❌ Failed to publish lock command for ${lockerId}:`, error);
         } else {
-          console.log(`✅ Lock command sent to ${lockerId}`);
+          console.log(`✅ Lock command published successfully to ${lockerId}`);
+          console.log('   Waiting for ESP32 to receive and respond...\n');
         }
       });
 

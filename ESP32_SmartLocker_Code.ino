@@ -140,6 +140,13 @@ void loop() {
   // This is intentional! Door only locks when backend sends lock command
   // after successful verification.
   
+  // Ensure LED always reflects lock state
+  if (isUnlocked) {
+    digitalWrite(STATUS_LED, HIGH); // LED ON when unlocked
+  } else {
+    digitalWrite(STATUS_LED, LOW);  // LED OFF when locked
+  }
+
   // Optional: Check door sensor for security alerts
   checkDoorSensor();
   
@@ -247,19 +254,19 @@ void unlockDoor() {
   Serial.println("🔓 UNLOCK COMMAND RECEIVED");
   Serial.println("===========================================");
   Serial.println("⚡ Activating relay...");
-  
+
   digitalWrite(LOCK_PIN, HIGH);  // Activate relay (unlock)
-  digitalWrite(STATUS_LED, HIGH); // Turn on LED
-  
+  digitalWrite(STATUS_LED, HIGH); // LED ON when unlocked
+
   isUnlocked = true;
-  
+
   Serial.println("✅ Door UNLOCKED");
   Serial.println("⏳ Waiting for LOCK command...");
   Serial.println("   (No auto-lock - door stays open)");
   Serial.println("===========================================\n");
-  
+
   publishStatus("UNLOCKED", "Door unlocked - waiting for verification");
-  
+
   // Beep pattern (if buzzer connected)
   // beepUnlock();
 }
@@ -269,18 +276,18 @@ void lockDoor() {
   Serial.println("🔒 LOCK COMMAND RECEIVED");
   Serial.println("===========================================");
   Serial.println("⚡ Deactivating relay...");
-  
+
   digitalWrite(LOCK_PIN, LOW);   // Deactivate relay (lock)
-  digitalWrite(STATUS_LED, LOW);  // Turn off LED
-  
+  digitalWrite(STATUS_LED, LOW);  // LED OFF when locked
+
   isUnlocked = false;
-  
+
   Serial.println("✅ Door LOCKED");
   Serial.println("🔐 Locker secured");
   Serial.println("===========================================\n");
-  
+
   publishStatus("LOCKED", "Door locked after verification");
-  
+
   // Beep pattern (if buzzer connected)
   // beepLock();
 }
