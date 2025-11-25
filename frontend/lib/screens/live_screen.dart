@@ -42,7 +42,8 @@ class _LiveScreenState extends State<LiveScreen> {
   bool _stepAdvancing = false;
 
   // BYPASS MODE: Skip straight to success after countdown
-  int _currentStep = 0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
+  int _currentStep =
+      0; // 0: Guide, 1: Live Detection, 2-6: Scan Steps, 7: Success, 8: Failure
   String _stepStatus = '';
   int _scanProgress = 1;
   int _scanTotal = 5;
@@ -209,9 +210,11 @@ class _LiveScreenState extends State<LiveScreen> {
           setState(() {
             _showDoorCountdown = false;
           });
-          
+
           // ✅ AUTOMATICALLY FINALIZE AND LOCK DOOR AFTER COUNTDOWN
-          debugPrint('🎯 Countdown complete - Automatically finalizing transaction and locking door');
+          debugPrint(
+            '🎯 Countdown complete - Automatically finalizing transaction and locking door',
+          );
           _handleFinalizeDeposit();
         }
       }
@@ -602,16 +605,16 @@ class _LiveScreenState extends State<LiveScreen> {
     debugPrint('\n${'=' * 60}');
     debugPrint('🔒 ATTEMPTING TO LOCK LOCKER AFTER VERIFICATION');
     debugPrint('=' * 60);
-    
+
     final transactionManager = Provider.of<TransactionManager>(
       context,
       listen: false,
     );
-    
+
     debugPrint('📋 Locker ID: ${transactionManager.lockerId}');
     debugPrint('📋 Transaction ID: ${transactionManager.transactionId}');
     debugPrint('🔄 Calling transactionManager.lockLocker()...');
-    
+
     final success = await transactionManager.lockLocker();
 
     if (success) {
@@ -822,18 +825,31 @@ class _LiveScreenState extends State<LiveScreen> {
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(color: Colors.green, width: 3),
                             ),
-                            child: const Icon(Icons.inventory_2, size: 64, color: Colors.brown),
+                            child: const Icon(
+                              Icons.inventory_2,
+                              size: 64,
+                              color: Colors.brown,
+                            ),
                           ),
                           const SizedBox(height: 18),
                           // Guide instructions
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
-                              Text('1. Center the PACKAGE', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '1. Center the PACKAGE',
+                                style: TextStyle(fontSize: 16),
+                              ),
                               SizedBox(height: 6),
-                              Text('2. Ensure WAYBILL & QR/BARCODE are FLAT & FACING FRONT', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '2. Ensure WAYBILL & QR/BARCODE are FLAT & FACING FRONT',
+                                style: TextStyle(fontSize: 16),
+                              ),
                               SizedBox(height: 6),
-                              Text('3. Check for CLEAR, Bright LIGHTING', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '3. Check for CLEAR, Bright LIGHTING',
+                                style: TextStyle(fontSize: 16),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -848,7 +864,9 @@ class _LiveScreenState extends State<LiveScreen> {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4285F4),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -872,8 +890,13 @@ class _LiveScreenState extends State<LiveScreen> {
                                 Navigator.of(context).pop();
                               },
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Colors.grey, width: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                side: const BorderSide(
+                                  color: Colors.grey,
+                                  width: 2,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -906,7 +929,9 @@ class _LiveScreenState extends State<LiveScreen> {
                         ? CameraPreview(_controller!)
                         : Container(
                             color: Colors.black,
-                            child: const Center(child: CircularProgressIndicator()),
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
                           ),
                   ),
                   // Header
@@ -935,7 +960,10 @@ class _LiveScreenState extends State<LiveScreen> {
                     bottom: 0,
                     child: Container(
                       color: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 24,
+                        horizontal: 24,
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -960,7 +988,9 @@ class _LiveScreenState extends State<LiveScreen> {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4285F4),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -985,8 +1015,13 @@ class _LiveScreenState extends State<LiveScreen> {
                                 });
                               },
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Colors.grey, width: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                side: const BorderSide(
+                                  color: Colors.grey,
+                                  width: 2,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -1056,7 +1091,9 @@ class _LiveScreenState extends State<LiveScreen> {
                           ? CameraPreview(_controller!)
                           : Container(
                               color: Colors.black,
-                              child: const Center(child: CircularProgressIndicator()),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
                             ),
                     ),
                     Positioned(
@@ -1096,7 +1133,11 @@ class _LiveScreenState extends State<LiveScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.door_front_door, size: 64, color: Colors.green),
+                            const Icon(
+                              Icons.door_front_door,
+                              size: 64,
+                              color: Colors.green,
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               'Doors Closing in ${_doorCountdown}s.',
@@ -1110,7 +1151,11 @@ class _LiveScreenState extends State<LiveScreen> {
                             const Text(
                               'Close the Door immediately to complete the delivery. Failure to close the door will make you restart the entire process.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
@@ -1142,21 +1187,57 @@ class _LiveScreenState extends State<LiveScreen> {
                           ),
                           child: Column(
                             children: [
-                              const Icon(Icons.check_circle, size: 64, color: Colors.green),
+                              const Icon(
+                                Icons.check_circle,
+                                size: 64,
+                                color: Colors.green,
+                              ),
                               const SizedBox(height: 8),
-                              const Text('Success!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green)),
+                              const Text(
+                                'Success!',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                  color: Colors.green,
+                                ),
+                              ),
                               const SizedBox(height: 8),
-                              const Text('VERIFIED DELIVERY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF2C3E50))),
+                              const Text(
+                                'VERIFIED DELIVERY',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2C3E50),
+                                ),
+                              ),
                               const SizedBox(height: 12),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: const [
-                                  _ChecklistItem(text: 'Package Match', success: true),
-                                  _ChecklistItem(text: 'Waybill ID Match', success: true),
-                                  _ChecklistItem(text: 'Waybill Text Match', success: true),
-                                  _ChecklistItem(text: 'Placement Validation', success: true),
-                                  _ChecklistItem(text: 'Locker Frame Match', success: true),
-                                  _ChecklistItem(text: 'Locker Door Closed', success: true),
+                                  _ChecklistItem(
+                                    text: 'Package Match',
+                                    success: true,
+                                  ),
+                                  _ChecklistItem(
+                                    text: 'Waybill ID Match',
+                                    success: true,
+                                  ),
+                                  _ChecklistItem(
+                                    text: 'Waybill Text Match',
+                                    success: true,
+                                  ),
+                                  _ChecklistItem(
+                                    text: 'Placement Validation',
+                                    success: true,
+                                  ),
+                                  _ChecklistItem(
+                                    text: 'Locker Frame Match',
+                                    success: true,
+                                  ),
+                                  _ChecklistItem(
+                                    text: 'Locker Door Closed',
+                                    success: true,
+                                  ),
                                 ],
                               ),
                             ],
@@ -1167,19 +1248,25 @@ class _LiveScreenState extends State<LiveScreen> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              final transactionManager = Provider.of<TransactionManager>(
-                                context,
-                                listen: false,
-                              );
+                              final transactionManager =
+                                  Provider.of<TransactionManager>(
+                                    context,
+                                    listen: false,
+                                  );
                               final transactionData = {
-                                'id': 'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
-                                'recipient': 'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
-                                'phone': '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
+                                'id':
+                                    'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
+                                'recipient':
+                                    'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
+                                'phone':
+                                    '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
                                 'locker': 'Locker: Smart Locker 001',
                                 'status': 'Delivered',
-                                'timestamp': DateTime.now().millisecondsSinceEpoch,
+                                'timestamp':
+                                    DateTime.now().millisecondsSinceEpoch,
                                 'waybill_id': transactionManager.waybillId,
-                                'waybill_details': transactionManager.waybillDetails,
+                                'waybill_details':
+                                    transactionManager.waybillDetails,
                                 'qr_scanned': 'Yes',
                                 'package_details': 'Scanned and logged',
                                 'verification_status': 'Verified',
@@ -1187,7 +1274,9 @@ class _LiveScreenState extends State<LiveScreen> {
                               };
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (context) => ViewTransactionScreen(transaction: transactionData),
+                                  builder: (context) => ViewTransactionScreen(
+                                    transaction: transactionData,
+                                  ),
                                 ),
                                 (route) => false,
                               );
@@ -1199,7 +1288,14 @@ class _LiveScreenState extends State<LiveScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: const Text('Review Transaction', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+                            child: const Text(
+                              'Review Transaction',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1218,7 +1314,14 @@ class _LiveScreenState extends State<LiveScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: const Text('Return to Home', style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500)),
+                            child: const Text(
+                              'Return to Home',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1235,7 +1338,9 @@ class _LiveScreenState extends State<LiveScreen> {
                         ? CameraPreview(_controller!)
                         : Container(
                             color: Colors.black,
-                            child: const Center(child: CircularProgressIndicator()),
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
                           ),
                   ),
                   Positioned(
@@ -1269,14 +1374,22 @@ class _LiveScreenState extends State<LiveScreen> {
                           Text(
                             step['title']!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Color(0xFF212121), fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: Color(0xFF212121),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           if (step['desc'] != null) ...[
                             const SizedBox(height: 4),
                             Text(
                               step['desc']!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w400),
+                              style: const TextStyle(
+                                color: Color(0xFF757575),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
                           ],
                           if (step['progress'] != null) ...[
@@ -1284,7 +1397,11 @@ class _LiveScreenState extends State<LiveScreen> {
                             Text(
                               step['progress']!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: Color(0xFF757575), fontSize: 13, fontWeight: FontWeight.w400),
+                              style: const TextStyle(
+                                color: Color(0xFF757575),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
                           ],
                           const SizedBox(height: 12),
@@ -1296,7 +1413,10 @@ class _LiveScreenState extends State<LiveScreen> {
                               decoration: BoxDecoration(
                                 color: Color(0xFFB9F6CA),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Color(0xFF00C853), width: 2),
+                                border: Border.all(
+                                  color: Color(0xFF00C853),
+                                  width: 2,
+                                ),
                               ),
                               child: const Center(
                                 child: Text(
@@ -1322,11 +1442,15 @@ class _LiveScreenState extends State<LiveScreen> {
                                   });
                                 },
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFFBDBDBD)),
+                                  side: const BorderSide(
+                                    color: Color(0xFFBDBDBD),
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
                                 ),
                                 child: const Text(
                                   'Cancel',
@@ -1369,21 +1493,57 @@ class _LiveScreenState extends State<LiveScreen> {
                         ),
                         child: Column(
                           children: [
-                            const Icon(Icons.check_circle, size: 64, color: Colors.green),
+                            const Icon(
+                              Icons.check_circle,
+                              size: 64,
+                              color: Colors.green,
+                            ),
                             const SizedBox(height: 8),
-                            const Text('Success!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green)),
+                            const Text(
+                              'Success!',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.green,
+                              ),
+                            ),
                             const SizedBox(height: 8),
-                            const Text('VERIFIED DELIVERY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF2C3E50))),
+                            const Text(
+                              'VERIFIED DELIVERY',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2C3E50),
+                              ),
+                            ),
                             const SizedBox(height: 12),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
-                                _ChecklistItem(text: 'Package Match', success: true),
-                                _ChecklistItem(text: 'Waybill ID Match', success: true),
-                                _ChecklistItem(text: 'Waybill Text Match', success: true),
-                                _ChecklistItem(text: 'Placement Validation', success: true),
-                                _ChecklistItem(text: 'Locker Frame Match', success: true),
-                                _ChecklistItem(text: 'Locker Door Closed', success: true),
+                                _ChecklistItem(
+                                  text: 'Package Match',
+                                  success: true,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Waybill ID Match',
+                                  success: true,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Waybill Text Match',
+                                  success: true,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Placement Validation',
+                                  success: true,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Locker Frame Match',
+                                  success: true,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Locker Door Closed',
+                                  success: true,
+                                ),
                               ],
                             ),
                           ],
@@ -1395,19 +1555,25 @@ class _LiveScreenState extends State<LiveScreen> {
                         child: ElevatedButton(
                           onPressed: () {
                             // Navigate to ViewTransactionScreen
-                            final transactionManager = Provider.of<TransactionManager>(
-                              context,
-                              listen: false,
-                            );
+                            final transactionManager =
+                                Provider.of<TransactionManager>(
+                                  context,
+                                  listen: false,
+                                );
                             final transactionData = {
-                              'id': 'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
-                              'recipient': 'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
-                              'phone': '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
+                              'id':
+                                  'Transaction ID: ${transactionManager.waybillId ?? "000000"}',
+                              'recipient':
+                                  'Recipient: ${transactionManager.auditData?.firstName ?? ""} ${transactionManager.auditData?.lastName ?? ""}',
+                              'phone':
+                                  '${transactionManager.auditData?.phoneNumber ?? "N/A"}',
                               'locker': 'Locker: Smart Locker 001',
                               'status': 'Delivered',
-                              'timestamp': DateTime.now().millisecondsSinceEpoch,
+                              'timestamp':
+                                  DateTime.now().millisecondsSinceEpoch,
                               'waybill_id': transactionManager.waybillId,
-                              'waybill_details': transactionManager.waybillDetails,
+                              'waybill_details':
+                                  transactionManager.waybillDetails,
                               'qr_scanned': 'Yes',
                               'package_details': 'Scanned and logged',
                               'verification_status': 'Verified',
@@ -1415,7 +1581,9 @@ class _LiveScreenState extends State<LiveScreen> {
                             };
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
-                                builder: (context) => ViewTransactionScreen(transaction: transactionData),
+                                builder: (context) => ViewTransactionScreen(
+                                  transaction: transactionData,
+                                ),
                               ),
                               (route) => false,
                             );
@@ -1427,7 +1595,14 @@ class _LiveScreenState extends State<LiveScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text('Review Transaction', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+                          child: const Text(
+                            'Review Transaction',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -1446,7 +1621,14 @@ class _LiveScreenState extends State<LiveScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text('Return to Home', style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500)),
+                          child: const Text(
+                            'Return to Home',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1477,21 +1659,53 @@ class _LiveScreenState extends State<LiveScreen> {
                         ),
                         child: Column(
                           children: [
-                            const Icon(Icons.error, size: 64, color: Colors.red),
+                            const Icon(
+                              Icons.error,
+                              size: 64,
+                              color: Colors.red,
+                            ),
                             const SizedBox(height: 8),
-                            const Text('Failed', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.red)),
+                            const Text(
+                              'Failed',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.red,
+                              ),
+                            ),
                             const SizedBox(height: 8),
-                            const Text('Make sure to clearly show and verify:', style: TextStyle(fontSize: 13, color: Colors.red)),
+                            const Text(
+                              'Make sure to clearly show and verify:',
+                              style: TextStyle(fontSize: 13, color: Colors.red),
+                            ),
                             const SizedBox(height: 12),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
-                                _ChecklistItem(text: 'Parcel Image', success: false),
-                                _ChecklistItem(text: 'Waybill ID', success: false),
-                                _ChecklistItem(text: 'Waybill Details', success: false),
-                                _ChecklistItem(text: 'Placement Validation', success: false),
-                                _ChecklistItem(text: 'Locker Frame', success: false),
-                                _ChecklistItem(text: 'Locker Door Closed', success: false),
+                                _ChecklistItem(
+                                  text: 'Parcel Image',
+                                  success: false,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Waybill ID',
+                                  success: false,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Waybill Details',
+                                  success: false,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Placement Validation',
+                                  success: false,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Locker Frame',
+                                  success: false,
+                                ),
+                                _ChecklistItem(
+                                  text: 'Locker Door Closed',
+                                  success: false,
+                                ),
                               ],
                             ),
                           ],
@@ -1513,7 +1727,14 @@ class _LiveScreenState extends State<LiveScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text('Try Again', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+                          child: const Text(
+                            'Try Again',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -1530,7 +1751,14 @@ class _LiveScreenState extends State<LiveScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text('Contact Support', style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500)),
+                          child: const Text(
+                            'Contact Support',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
                     ],
