@@ -4,8 +4,6 @@ import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import 'dart:typed_data';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import '../services/tflite_processor.dart';
 import '../services/transaction_manager.dart';
 import '../services/text_recognition_service.dart';
@@ -40,7 +38,6 @@ class _ScanScreenState extends State<ScanScreen> {
   String? _scannedBarcode;
   String? _extractedText;
   Uint8List? _packageImage;
-  String? _packageImagePath; // Path to saved image file
   String? _errorMessage;
 
   @override
@@ -778,27 +775,6 @@ class _ScanScreenState extends State<ScanScreen> {
       final XFile image = await _cameraController!.takePicture();
       _packageImage = await File(image.path).readAsBytes();
 
-      // Save image to permanent storage
-      final directory = await getApplicationDocumentsDirectory();
-      final imagesDir = Directory(path.join(directory.path, 'package_images'));
-
-      // Create directory if it doesn't exist
-      if (!await imagesDir.exists()) {
-        await imagesDir.create(recursive: true);
-      }
-
-      // Generate unique filename with timestamp and barcode
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final barcode = _scannedBarcode ?? 'unknown';
-      final filename = 'package_${barcode}_$timestamp.png';
-      final savedImagePath = path.join(imagesDir.path, filename);
-
-      // Copy image to permanent location
-      final savedFile = File(savedImagePath);
-      await savedFile.writeAsBytes(_packageImage!);
-
-      _packageImagePath = savedImagePath;
-
       // Generate embedding
       final embedding = await TFLiteProcessor.generateEmbedding(_packageImage!);
 
@@ -810,7 +786,6 @@ class _ScanScreenState extends State<ScanScreen> {
         '============================================================',
       );
       debugPrint('✅ Image size: ${_packageImage!.length} bytes');
-      debugPrint('✅ Image saved to: $_packageImagePath');
       debugPrint('✅ Embedding length: ${embedding.length}');
       debugPrint(
         '============================================================',
@@ -836,7 +811,6 @@ class _ScanScreenState extends State<ScanScreen> {
         waybillId: _scannedBarcode ?? 'NO_BARCODE',
         waybillDetails: _extractedText ?? 'NO_TEXT',
         embedding: embedding,
-        imagePath: _packageImagePath, // Pass image path to transaction manager
       );
 
       setState(() {

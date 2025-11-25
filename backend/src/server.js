@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const Parcel = require('./models/Parcel');
 const Locker = require('./models/Locker');
 const mqttService = require('./services/mqttService');
+const smsService = require('./services/smsService');
 const parcelController = require('../controllers/parcelController');
 
 const app = express();
@@ -61,6 +62,7 @@ function broadcastToQRGenerator(data) {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', require('./routes/auth'));
 // POST /api/parcels/finalize - Finalize transaction by waybill_id
+app.post('/api/parcels/deliver', parcelController.deliverParcel);
 app.post('/api/parcels/finalize', parcelController.finalizeTransaction);
 // POST /api/transaction/:id/finalize - Finalize transaction by ID
 app.post('/api/transaction/:id/finalize', parcelController.finalizeTransactionById);
@@ -71,6 +73,65 @@ app.get('/api/transaction/:id/reference', parcelController.getReferenceData);
 app.delete('/api/transaction/:id', parcelController.deleteTransaction);
 // POST /api/locker/:id/lock - Lock the locker via MQTT
 app.post('/api/locker/:id/lock', parcelController.lockLocker);
+// POST /api/transaction/:id/request-otp - Request OTP for parcel claim
+app.post('/api/transaction/:id/request-otp', parcelController.requestOTP);
+// POST /api/transaction/:id/verify-otp - Verify OTP for parcel claim
+app.post('/api/transaction/:id/verify-otp', parcelController.verifyOTP);
+
+// POST /api/claim/verify-tracking - Verify waybill_id and send OTP automatically
+app.post('/api/claim/verify-tracking', async (req, res) => {
+  try {
+    const { waybill_id } = req.body;
+
+    if (!waybill_id) {
+      return res.status(400).json({ error: 'Tracking Number is required' });
+    }
+
+    // Find parcel by waybill_id
+    const parcel = await Parcel.findOne({ waybill_id: waybill_id.trim() });
+
+    if (!parcel) {
+      return res.status(404).json({ error: 'Tracking Number not found' });
+    }
+
+    // Check if parcel is already claimed
+    if (parcel.status === 'CLAIMED') {
+      return res.status(400).json({ error: 'This parcel has already been claimed' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save OTP and expiry (5 minutes from now)
+    parcel.otp = otp;
+    parcel.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+    await parcel.save();
+
+    // TESTING MODE: Bypass SMS sending, log OTP to console instead
+    console.log(`\n📱 OTP GENERATED (TESTING MODE - SMS BYPASSED)`);
+    console.log(`   Transaction ID: ${parcel._id}`);
+    console.log(`   Waybill: ${waybill_id}`);
+    console.log(`   Recipient: ${parcel.recipient_first_name} ${parcel.recipient_last_name}`);
+    console.log(`   Phone: ${parcel.recipient_phone}`);
+    console.log(`   🔑 OTP: ${otp}`);
+    console.log(`   Expires: ${parcel.otpExpires.toLocaleString()}`);
+    console.log(`   Valid for: 5 minutes\n`);
+
+    res.json({
+      message: 'Waybill ID verified. OTP generated (check console for OTP).',
+      transaction_id: parcel._id,
+      waybill_id: parcel.waybill_id,
+      recipient_name: `${parcel.recipient_first_name} ${parcel.recipient_last_name}`,
+      phone_masked: parcel.recipient_phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'),
+      otp_expires_in: '5 minutes',
+      testing_mode: true,
+      otp_in_console: true
+    });
+  } catch (error) {
+    console.error('Error verifying waybill ID:', error);
+    res.status(500).json({ error: 'Failed to verify waybill ID', details: error.message });
+  }
+});
 
 // GET /api/lockers - Get all lockers with their status
 app.get('/api/lockers', async (req, res) => {
@@ -177,8 +238,7 @@ app.post('/api/parcel/log', async (req, res) => {
       locker_id,
       waybill_id,
       waybill_details,
-      image_embedding_vector,
-      image_path // Optional field for storing image file path
+      image_embedding_vector
     } = req.body;
 
     // Validate required fields
@@ -207,7 +267,6 @@ app.post('/api/parcel/log', async (req, res) => {
       waybill_id,
       waybill_details,
       image_embedding_vector,
-      image_path, // Include image path if provided
       status: 'DELIVERED',
       initial_timestamp: new Date()
     });
@@ -356,19 +415,31 @@ app.put('/api/parcel/success/:id', async (req, res) => {
     }
   });
 
-// PUT /api/locker/:lockerId/lock - Lock the locker door (called after courier closes door)
+// PUT /api/locker/:lockerId/lock - Lock the locker door (called after verification)
 app.put('/api/locker/:lockerId/lock', async (req, res) => {
   try {
     const { lockerId } = req.params;
 
+    console.log('\n' + '='.repeat(60));
+    console.log('🔒 LOCK REQUEST RECEIVED FROM FLUTTER APP');
+    console.log('='.repeat(60));
+    console.log('   Method: PUT');
+    console.log('   Endpoint: /api/locker/:lockerId/lock');
+    console.log('   Locker ID: ' + lockerId);
+    console.log('   Time: ' + new Date().toLocaleString());
+
     if (!lockerId) {
+      console.log('❌ Error: Missing locker ID');
       return res.status(400).json({ error: 'Locker ID is required' });
     }
 
     // 🔒 LOCK THE LOCKER via MQTT
+    console.log('🔄 Calling mqttService.lockLocker()...');
     const lockSuccess = mqttService.lockLocker(lockerId);
 
     if (lockSuccess) {
+      console.log('✅ MQTT lock command sent successfully');
+      console.log('=' .repeat(60) + '\n');
       res.json({
         message: 'Lock command sent successfully',
         locker_id: lockerId,
@@ -376,14 +447,16 @@ app.put('/api/locker/:lockerId/lock', async (req, res) => {
         timestamp: new Date()
       });
     } else {
+      console.log('❌ MQTT lock command FAILED (MQTT not connected)');
+      console.log('=' .repeat(60) + '\n');
       res.status(500).json({
-        error: 'Failed to send lock command',
+        error: 'Failed to send lock command - MQTT not connected',
         locker_id: lockerId
       });
     }
 
   } catch (error) {
-    console.error('Error sending lock command:', error);
+    console.error('❌ Error sending lock command:', error);
     res.status(500).json({ error: 'Failed to send lock command', details: error.message });
   }
 });

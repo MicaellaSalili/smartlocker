@@ -4,6 +4,7 @@ class MQTTService {
   constructor() {
     this.client = null;
     this.isConnected = false;
+    this.lockerStates = new Map(); // Track locker states (lock + door sensor)
     
     // MQTT Broker configuration
     // Option 1: Use public test broker (for testing only)
@@ -34,6 +35,22 @@ class MQTTService {
         this._errorLogged = false;
         this._reconnectCount = 0;
         console.log('✅ MQTT connected');
+        
+        // Subscribe to all locker status topics to monitor door sensors
+        this.client.subscribe('smartlocker/locker/+/status', (err) => {
+          if (!err) {
+            console.log('📡 Subscribed to locker status updates (monitoring door sensors)');
+          }
+        });
+      });
+
+      this.client.on('message', async (topic, message) => {
+        try {
+          const payload = JSON.parse(message.toString());
+          await this.handleStatusUpdate(topic, payload);
+        } catch (error) {
+          console.error('❌ Error processing MQTT message:', error.message);
+        }
       });
 
       this.client.on('error', (error) => {
@@ -58,6 +75,69 @@ class MQTTService {
     } catch (error) {
       console.error('Failed to initialize MQTT:', error.message);
     }
+  }
+
+  async handleStatusUpdate(topic, payload) {
+    const lockerId = payload.locker_id;
+    const status = payload.status;
+    const doorClosed = payload.door_closed;
+    const lockState = payload.lock_state;
+
+    // Store current state
+    this.lockerStates.set(lockerId, {
+      lockState,
+      doorClosed,
+      status,
+      message: payload.message,
+      timestamp: Date.now()
+    });
+
+    // Display status in terminal with door sensor info
+    console.log(`\n📊 ${lockerId} Status Update:`);
+    console.log(`   🔐 Lock: ${lockState}`);
+    console.log(`   🚪 Door: ${doorClosed ? '✅ CLOSED' : '⚠️  OPEN'}`);
+    console.log(`   📍 Status: ${status}`);
+    console.log(`   💬 Message: ${payload.message}`);
+
+    // Handle specific states
+    if (status === 'SECURED' && doorClosed && lockState === 'LOCKED') {
+      console.log(`   ✨ ${lockerId} is fully secured and ready`);
+    } else if (status === 'ALERT') {
+      console.log(`   🚨 SECURITY ALERT: ${payload.message}`);
+    } else if (status === 'DOOR_CLOSED' && lockState === 'UNLOCKED') {
+      console.log(`   ⏳ Door closed, waiting for lock command`);
+    } else if (status === 'DOOR_OPEN' && lockState === 'UNLOCKED') {
+      console.log(`   👤 User accessing locker`);
+    }
+  }
+
+  /**
+   * Get current locker state (including door sensor)
+   * @param {string} lockerId - The locker ID
+   * @returns {object|null} - Locker state or null
+   */
+  getLockerState(lockerId) {
+    return this.lockerStates.get(lockerId) || null;
+  }
+
+  /**
+   * Check if door is closed for a specific locker
+   * @param {string} lockerId - The locker ID
+   * @returns {boolean} - True if door is closed
+   */
+  isDoorClosed(lockerId) {
+    const state = this.lockerStates.get(lockerId);
+    return state ? state.doorClosed === true : false;
+  }
+
+  /**
+   * Check if locker is locked
+   * @param {string} lockerId - The locker ID
+   * @returns {boolean} - True if locked
+   */
+  isLocked(lockerId) {
+    const state = this.lockerStates.get(lockerId);
+    return state ? state.lockState === 'LOCKED' : false;
   }
 
   /**
