@@ -203,8 +203,6 @@ class MQTTService {
       this.client.publish(topic, message, { qos: 1, retain: false }, (error) => {
         if (error) {
           console.error(`❌ Failed to publish lock command for ${lockerId}:`, error);
-        } else {
-          console.log(`✅ Lock command sent to ${lockerId}`);
         }
       });
 

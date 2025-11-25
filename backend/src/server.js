@@ -32,7 +32,7 @@ app.get('/api/lcd/stream', (req, res) => {
   // Add this client to the list
   qrGeneratorClients.push(res);
   
-  console.log(`\n� QR Generator connected (Total: ${qrGeneratorClients.length})`);
+  console.log(`\n📺 QR Generator connected (Total: ${qrGeneratorClients.length})`);
 
   // Send initial connection confirmation
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'QR Generator connected' })}\n\n`);
@@ -45,7 +45,7 @@ app.get('/api/lcd/stream', (req, res) => {
     }
     // Only log disconnect if it was the last screen
     if (qrGeneratorClients.length === 0) {
-      console.log(`� All QR Generators disconnected\n`);
+      console.log(`📺 All QR Generators disconnected\n`);
     }
   });
 });
@@ -506,7 +506,7 @@ app.get('/api/locker/available', async (req, res) => {
     console.log(`   Expires:     ${expiresAt.toLocaleTimeString()}`);
     console.log(`   Valid for:   5 minutes`);
     console.log(`   QR Content:  ${qrContent}`);
-    console.log(`   � Broadcasting to ${qrGeneratorClients.length} QR Generator(s)\n`);
+    console.log(`   📺 Broadcasting to ${qrGeneratorClients.length} QR Generator(s)\n`);
     
     // Broadcast QR code to all connected QR Generator screens
     broadcastToQRGenerator({
@@ -673,6 +673,45 @@ app.put('/api/locker/:lockerId/unlock', async (req, res) => {
   }
 });
 
+// POST /api/locker/:lockerId/unlock-claim - Unlock locker for parcel claim (no token required, OTP already verified)
+app.post('/api/locker/:lockerId/unlock-claim', async (req, res) => {
+  try {
+    const { lockerId } = req.params;
+
+    if (!lockerId) {
+      return res.status(400).json({ error: 'Locker ID is required' });
+    }
+
+    console.log(`\n🔓 UNLOCK CLAIM REQUEST (OTP Verified)`);
+    console.log(`   Locker ID: ${lockerId}`);
+    console.log(`   Time: ${new Date().toLocaleTimeString()}`);
+
+    // Send MQTT unlock command
+    const unlockSuccess = mqttService.unlockLocker(lockerId, {
+      trigger: 'PARCEL_CLAIM',
+      timestamp: new Date().toISOString()
+    });
+
+    if (!unlockSuccess) {
+      console.log(`   ⚠️  MQTT offline (ESP32 not connected)`);
+    } else {
+      console.log(`   ✅ Unlock command sent via MQTT`);
+    }
+
+    res.json({
+      message: 'Unlock command sent for parcel claim',
+      locker_id: lockerId,
+      status: 'UNLOCKED',
+      timestamp: new Date(),
+      mqtt_status: unlockSuccess ? 'sent' : 'offline'
+    });
+
+  } catch (error) {
+    console.error('Error unlocking locker for claim:', error);
+    res.status(500).json({ error: 'Failed to unlock locker', details: error.message });
+  }
+});
+
 // DELETE /api/parcel/:id - Transaction rollback
 app.delete('/api/parcel/:id', async (req, res) => {
   try {
@@ -736,7 +775,7 @@ mongoose.connect(MONGODB_URI, {
       // Optionally, dynamically show network IP
       console.log(`   Network:     http://0.0.0.0:${PORT}`);
       console.log('\n   📱 Flutter App:    Ready to accept requests');
-      console.log('   � QR Generator:   Waiting for connection...');
+      console.log('   📺 QR Generator:   Waiting for connection...');
       console.log('   🔌 ESP32:          Offline (this is normal for now)\n');
     });
   })

@@ -51,6 +51,14 @@ const parcelSchema = new mongoose.Schema({
       enum: ['DELIVERED', 'CLAIMED'],
       default: 'DELIVERED'
   },
+    otp: {
+    type: String,
+    default: null
+  },
+  otpExpires: {
+    type: Date,
+    default: null
+  },
   initial_timestamp: {
     type: Date,
     default: Date.now

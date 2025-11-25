@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Parcel Locker</title>
+    <link rel="stylesheet" href="kiosk.css" />
+  </head>
+  <body>
+    <!-- Home Page -->
+    <div class="page active" id="homePage">
+      <div class="home-page">
+        <div class="header">
+          <div class="logo-icon">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <!-- Back face -->
+              <path d="M25 35 L50 25 L75 35 L75 65 L50 75 L25 65 Z" fill="#6366F1" opacity="0.6"/>
+              <!-- Top face -->
+              <path d="M50 25 L75 35 L50 45 L25 35 Z" fill="#818CF8"/>
+              <!-- Right face -->
+              <path d="M50 45 L75 35 L75 65 L50 75 Z" fill="#6366F1"/>
+              <!-- Left face -->
+              <path d="M50 45 L25 35 L25 65 L50 75 Z" fill="#4F46E5"/>
+              <!-- Horizontal lines on front -->
+              <line x1="37" y1="48" x2="50" y2="54" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="50" y1="54" x2="63" y2="48" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="37" y1="58" x2="50" y2="64" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="50" y1="64" x2="63" y2="58" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h1>Smart Parcel Locker</h1>
+          <p class="subtitle">Please select your option</p>
+        </div>
+
+        <div class="options-container">
+          <div class="option-card courier" onclick="selectCourier()">
+            <div class="icon-circle">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Back face -->
+                <path d="M30 40 L50 30 L70 40 L70 65 L50 75 L30 65 Z" fill="white" opacity="0.8"/>
+                <!-- Top face -->
+                <path d="M50 30 L70 40 L50 50 L30 40 Z" fill="white"/>
+                <!-- Right face -->
+                <path d="M50 50 L70 40 L70 65 L50 75 Z" fill="white" opacity="0.9"/>
+                <!-- Left face -->
+                <path d="M50 50 L30 40 L30 65 L50 75 Z" fill="white" opacity="0.7"/>
+                <!-- Horizontal lines -->
+                <line x1="38" y1="54" x2="50" y2="60" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/>
+                <line x1="50" y1="60" x2="62" y2="54" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2 class="option-title">For Courier</h2>
+            <p class="option-description">Drop off a parcel</p>
+          </div>
+
+          <div class="option-card recipient" onclick="selectRecipient()">
+            <div class="icon-circle">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Bottom box - Back face -->
+                <path d="M28 50 L50 40 L72 50 L72 70 L50 80 L28 70 Z" fill="white" opacity="0.7"/>
+                <!-- Bottom box - Top face -->
+                <path d="M50 40 L72 50 L50 60 L28 50 Z" fill="white"/>
+                <!-- Bottom box - Right face -->
+                <path d="M50 60 L72 50 L72 70 L50 80 Z" fill="white" opacity="0.85"/>
+                <!-- Bottom box - Left face -->
+                <path d="M50 60 L28 50 L28 70 L50 80 Z" fill="white" opacity="0.65"/>
+                
+                <!-- Top box - smaller -->
+                <path d="M35 35 L50 28 L65 35 L65 50 L50 57 L35 50 Z" fill="white" opacity="0.75"/>
+                <!-- Top box - Top face -->
+                <path d="M50 28 L65 35 L50 42 L35 35 Z" fill="white"/>
+                <!-- Top box - Right face -->
+                <path d="M50 42 L65 35 L65 50 L50 57 Z" fill="white" opacity="0.9"/>
+                <!-- Top box - Left face -->
+                <path d="M50 42 L35 35 L35 50 L50 57 Z" fill="white" opacity="0.7"/>
+              </svg>
+            </div>
+            <h2 class="option-title">For Recipient</h2>
+            <p class="option-description">Pick up your parcel</p>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>© 2025 Smart Parcel Locker System</p>
+          <p>Need help? Call: 1900-xxxx</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pickup Page -->
+    <div class="page" id="pickupPage">
+      <div class="pickup-page">
+        <button class="back-button" onclick="goBack()">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          Back
+        </button>
+
+        <div class="card">
+          <div class="card-header">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <!-- 3D Box Icon -->
+              <path d="M35 45 L50 38 L65 45 L65 65 L50 72 L35 65 Z" fill="#10B981" opacity="0.7"/>
+              <path d="M50 38 L65 45 L50 52 L35 45 Z" fill="#10B981"/>
+              <path d="M50 52 L65 45 L65 65 L50 72 Z" fill="#10B981" opacity="0.85"/>
+              <path d="M50 52 L35 45 L35 65 L50 72 Z" fill="#059669" opacity="0.8"/>
+              <line x1="42" y1="56" x2="50" y2="60" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <line x1="50" y1="60" x2="58" y2="56" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <h2>Pick Up Parcel</h2>
+          </div>
+
+          <div class="key-icon-container">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="35" cy="35" r="12" fill="none" stroke="#10B981" stroke-width="5"/>
+              <circle cx="35" cy="35" r="4" fill="#10B981"/>
+              <rect x="43" y="41" width="32" height="7" rx="2" fill="#10B981"/>
+              <rect x="60" y="35" width="8" height="7" rx="2" fill="#10B981"/>
+              <rect x="60" y="43" width="8" height="7" rx="2" fill="#10B981"/>
+            </svg>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-title">Enter Tracking Code</h3>
+            <p class="form-description">Enter the code you received via SMS</p>
+
+            <div class="form-group">
+              <label>Tracking Code</label>
+              <input
+                type="text"
+                id="trackingCode"
+                placeholder="QWE123456"
+                maxlength="20"
+                pattern="[a-zA-Z0-9]+"
+                onkeypress="return isAlphaNumeric(event)" 
+                onpaste="return false;"
+                required
+              />
+            </div>
+
+            <button class="continue-button" onclick="verifyCode()">
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OTP Verification Page -->
+    <div class="page" id="otpPage">
+      <div class="otp-page">
+        <button class="back-button" onclick="goBackFromOTP()">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          Back
+        </button>
+
+        <div class="card">
+          <div class="card-header">
+            <svg viewBox="0 0 100 100">
+              <path
+                d="M50 20 L70 30 L70 55 L50 65 L30 55 L30 30 Z"
+                stroke="#4caf50"
+                stroke-width="5"
+                fill="none"
+              />
+              <line
+                x1="50"
+                y1="20"
+                x2="50"
+                y2="42.5"
+                stroke="#4caf50"
+                stroke-width="5"
+              />
+              <line
+                x1="40"
+                y1="37.5"
+                x2="60"
+                y2="37.5"
+                stroke="#4caf50"
+                stroke-width="5"
+              />
+              <line
+                x1="40"
+                y1="47.5"
+                x2="60"
+                y2="47.5"
+                stroke="#4caf50"
+                stroke-width="5"
+              />
+            </svg>
+            <h2>Pick Up Parcel</h2>
+          </div>
+
+          <div class="otp-key-icon">
+            <svg viewBox="0 0 100 100">
+              <circle
+                cx="30"
+                cy="30"
+                r="15"
+                fill="none"
+                stroke="#5c6bc0"
+                stroke-width="5"
+              />
+              <circle cx="30" cy="30" r="5" fill="#5c6bc0" />
+              <line
+                x1="42"
+                y1="38"
+                x2="75"
+                y2="71"
+                stroke="#5c6bc0"
+                stroke-width="5"
+              />
+              <rect x="70" y="66" width="10" height="10" fill="#5c6bc0" />
+              <rect x="62" y="74" width="10" height="10" fill="#5c6bc0" />
+            </svg>
+          </div>
+
+          <h3 class="otp-title">Verify OTP</h3>
+          <p class="otp-description">
+            Enter the 6-digit code sent to your phone
+          </p>
+          <p class="phone-number" id="recipientPhone">+1 234 567 8900</p>
+
+          <div class="timer-container">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="timer-icon">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="#EF4444" stroke-width="2"/>
+              <polyline points="12,6 12,12 16,14" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span class="timer-text">Time remaining: <span id="otpTimer">5:00</span></span>
+          </div>
+
+          <p class="otp-label">Enter OTP Code</p>
+
+          <div class="otp-inputs">
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp1"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="moveToNext(this, 'otp2')"
+              onkeydown="moveToPrev(event, this, null)"
+            />
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp2"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="moveToNext(this, 'otp3')"
+              onkeydown="moveToPrev(event, this, 'otp1')"
+            />
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp3"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="moveToNext(this, 'otp4')"
+              onkeydown="moveToPrev(event, this, 'otp2')"
+            />
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp4"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="moveToNext(this, 'otp5')"
+              onkeydown="moveToPrev(event, this, 'otp3')"
+            />
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp5"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="moveToNext(this, 'otp6')"
+              onkeydown="moveToPrev(event, this, 'otp4')"
+            />
+            <input
+              type="text"
+              class="otp-input"
+              maxlength="1"
+              id="otp6"
+              maxlength="1" 
+              pattern="^-?\d+(\.\d+)?$"
+              onkeypress="return isNumeric(event)"
+              oninput="handleLastInput(this)"
+              onkeydown="moveToPrev(event, this, 'otp5')"
+            />
+          </div>
+
+          <button class="verify-button" onclick="verifyOTP()">
+            Verify & Open Locker
+          </button>
+
+          <div class="resend-section">
+            <p class="resend-text">Didn't receive the code?</p>
+            <button class="resend-link" onclick="resendCode()">
+              Resend Code
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OTP Sent Modal -->
+    <div class="modal" id="otpSentModal">
+      <div class="modal-content">
+        <div class="modal-icon success-modal-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" fill="#10B981"/>
+            <path d="M30 50 L45 65 L70 35" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h2 class="modal-title">OTP Sent!</h2>
+        <p class="modal-message" id="otpSentMessage">
+          A 6-digit OTP has been generated.<br>
+          Check the server console for your OTP code.
+        </p>
+        <button class="modal-button" onclick="closeOTPSentModal()">Continue</button>
+      </div>
+    </div>
+
+    <!-- OTP Verified Modal -->
+    <div class="modal" id="otpVerifiedModal">
+      <div class="modal-content">
+        <div class="modal-icon success-modal-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" fill="#10B981"/>
+            <path d="M30 50 L45 65 L70 35" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h2 class="modal-title">OTP Verified!</h2>
+        <p class="modal-message">
+          Your OTP has been verified successfully.<br>
+          Opening your locker now...
+        </p>
+      </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal" id="errorModal">
+      <div class="modal-content">
+        <div class="modal-icon error-modal-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" fill="#EF4444"/>
+            <path d="M35 35 L65 65 M65 35 L35 65" stroke="white" stroke-width="6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2 class="modal-title" id="errorTitle">Error</h2>
+        <p class="modal-message" id="errorMessage">An error occurred</p>
+        <button class="modal-button" onclick="closeErrorModal()">OK</button>
+      </div>
+    </div>
+
+    <!-- Warning Modal (for Already Claimed) -->
+    <div class="modal" id="warningModal">
+      <div class="modal-content">
+        <div class="modal-icon warning-modal-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 10 L90 80 L10 80 Z" fill="#F59E0B"/>
+            <text x="50" y="70" text-anchor="middle" fill="white" font-size="40" font-weight="bold">!</text>
+          </svg>
+        </div>
+        <h2 class="modal-title" id="warningTitle">Warning</h2>
+        <p class="modal-message" id="warningMessage">This action requires attention</p>
+        <button class="modal-button warning-button" onclick="closeWarningModal()">OK</button>
+      </div>
+    </div>
+
+    <!-- Opening Locker Page -->
+    <div class="page" id="openingPage">
+      <div class="opening-page">
+        <button class="back-button" onclick="goBack()">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          Back
+        </button>
+
+        <div class="card">
+          <div class="card-header">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <!-- 3D Box Icon -->
+              <path d="M35 45 L50 38 L65 45 L65 65 L50 72 L35 65 Z" fill="#10B981" opacity="0.7"/>
+              <path d="M50 38 L65 45 L50 52 L35 45 Z" fill="#10B981"/>
+              <path d="M50 52 L65 45 L65 65 L50 72 Z" fill="#10B981" opacity="0.85"/>
+              <path d="M50 52 L35 45 L35 65 L50 72 Z" fill="#059669" opacity="0.8"/>
+              <line x1="42" y1="56" x2="50" y2="60" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <line x1="50" y1="60" x2="58" y2="56" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <h2>Pick Up Parcel</h2>
+          </div>
+
+          <div class="opening-content">
+            <div class="spinner-container">
+              <div class="spinner-circle">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <!-- Inner circle with box icon -->
+                  <circle cx="50" cy="50" r="35" fill="#10B981"/>
+                  <!-- Box icon -->
+                  <path d="M42 42 L50 38 L58 42 L58 55 L50 59 L42 55 Z" fill="white" opacity="0.9"/>
+                  <path d="M50 38 L58 42 L50 46 L42 42 Z" fill="white"/>
+                  <path d="M50 46 L58 42 L58 55 L50 59 Z" fill="white" opacity="0.95"/>
+                  <path d="M50 46 L42 42 L42 55 L50 59 Z" fill="white" opacity="0.85"/>
+                </svg>
+                <!-- Animated arc -->
+                <svg class="spinner-arc" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#10B981" stroke-width="4" stroke-linecap="round" stroke-dasharray="75 200" />
+                </svg>
+              </div>
+            </div>
+
+            <h3 class="opening-title">Opening Locker...</h3>
+            <p class="locker-number" id="openingLockerNumber">Locker #4</p>
+
+            <div class="info-box">
+              <p class="info-text">Please wait while we unlock your locker</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Locker Opened Success Page -->
+    <div class="page" id="successPage">
+      <div class="success-page">
+        <button class="back-button" onclick="goBack()">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          Back
+        </button>
+
+        <div class="card">
+          <div class="card-header">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <!-- 3D Box Icon -->
+              <path d="M35 45 L50 38 L65 45 L65 65 L50 72 L35 65 Z" fill="#10B981" opacity="0.7"/>
+              <path d="M50 38 L65 45 L50 52 L35 45 Z" fill="#10B981"/>
+              <path d="M50 52 L65 45 L65 65 L50 72 Z" fill="#10B981" opacity="0.85"/>
+              <path d="M50 52 L35 45 L35 65 L50 72 Z" fill="#059669" opacity="0.8"/>
+              <line x1="42" y1="56" x2="50" y2="60" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <line x1="50" y1="60" x2="58" y2="56" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <h2>Pick Up Parcel</h2>
+          </div>
+
+          <div class="success-content">
+            <div class="success-icon">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#10B981" stroke-width="5"/>
+                <polyline points="30,50 45,65 70,35" fill="none" stroke="#10B981" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+
+            <h3 class="success-title">Locker Opened!</h3>
+
+            <div class="locker-info-box">
+              <p class="locker-label">Your Locker</p>
+              <p class="locker-number-large" id="successLockerNumber">4</p>
+            </div>
+
+            <div class="instructions-box">
+              <div class="instructions-header">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="#F97316" stroke-width="2"/>
+                  <text x="12" y="17" text-anchor="middle" fill="#F97316" font-size="14" font-weight="bold">i</text>
+                </svg>
+                <h4>Important Instructions:</h4>
+              </div>
+              <ol class="instructions-list">
+                <li id="successInstruction1">Retrieve your parcel from locker #4</li>
+                <li>Check that the parcel is yours</li>
+                <li>Close the locker door securely</li>
+                <li>The locker will automatically lock after 2 minutes</li>
+              </ol>
+            </div>
+
+            <button class="done-button" onclick="goBackToHome()">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="kiosk.js"></script>
+  </body>
+</html>

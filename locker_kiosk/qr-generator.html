@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Locker LCD Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #E8EBF7 0%, #D5DAF0 100%);
+            min-height: 100vh;
+            padding: 20px 40px 40px;
+        }
+
+        /* Navigation Header */
+        .nav-header {
+            max-width: 900px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-btn {
+            background: white;
+            color: #6366F1;
+            padding: 12px 24px;
+            border: 2px solid #6366F1;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            width: auto;
+            margin-top: 0;
+        }
+
+        .back-btn:hover {
+            background: #6366F1;
+            color: white;
+            transform: translateX(-3px);
+        }
+
+        .back-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* LCD Screen Simulation */
+        .lcd-screen {
+            max-width: 900px;
+            margin: 10px auto 30px;
+        }
+        
+        .lcd-display {
+            background: white;
+            padding: 60px 80px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 40px;
+        }
+
+        .card-header svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .card-header h2 {
+            color: #7C3AED;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        h1 {
+            color: #6366F1;
+            text-align: center;
+            margin: 0 0 20px 0;
+            font-size: 32px;
+            font-weight: 600;
+        }
+        
+        .status {
+            color: #6B7280;
+            text-align: center;
+            font-size: 24px;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+        
+        .locker-info {
+            background: #ECFDF5;
+            padding: 30px;
+            border-radius: 12px;
+            margin: 30px auto;
+            text-align: center;
+            max-width: 600px;
+        }
+        
+        .locker-label {
+            color: #9CA3AF;
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .locker-id {
+            color: #059669;
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        
+        #qrcode {
+            text-align: center;
+            margin: 30px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            max-width: 400px;
+        }
+        
+        canvas {
+            border-radius: 5px;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .timer {
+            color: #F97316;
+            text-align: center;
+            font-size: 18px;
+            margin: 20px 0;
+            font-weight: 600;
+        }
+        
+        .instructions {
+            color: #9CA3AF;
+            text-align: center;
+            font-size: 16px;
+            margin: 20px 0 10px 0;
+        }
+
+        .waiting-content {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .waiting-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+        }
+
+        .waiting-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            max-width: 900px;
+            margin: 20px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+
+        
+        button {
+            background: #111827;
+            color: white;
+            padding: 18px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #1F2937;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button:disabled {
+            background: #9CA3AF;
+            cursor: not-allowed;
+        }
+        
+        .refresh-btn {
+            background: #10B981;
+        }
+        
+        .refresh-btn:hover {
+            background: #059669;
+        }
+
+        .reset-btn {
+            background: #EF4444;
+        }
+
+        .reset-btn:hover {
+            background: #DC2626;
+        }
+        
+        input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #E5E7EB;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+            background: #F9FAFB;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #6366F1;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        label {
+            display: block;
+            margin-top: 20px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 16px;
+        }
+
+        .status-connected {
+            background: #ECFDF5;
+            border-left-color: #10B981;
+        }
+
+        .status-connected strong {
+            color: #10B981;
+        }
+
+        .status-error {
+            background: #FEF2F2;
+            border-left-color: #EF4444;
+        }
+
+        .status-error strong {
+            color: #EF4444;
+        }
+
+        .status-warning {
+            background: #FFF7ED;
+            border-left-color: #F97316;
+        }
+
+        .status-warning strong {
+            color: #F97316;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Header -->
+    <div class="nav-header">
+        <a href="kiosk.html" class="back-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+        </a>
+    </div>
+
+    <!-- LCD Screen (Simulates Physical Locker Display) -->
+    <div class="lcd-screen">
+        <div class="lcd-display">
+            <div class="card-header">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- 3D Box Icon -->
+                    <path d="M25 35 L50 25 L75 35 L75 65 L50 75 L25 65 Z" fill="#6366F1" opacity="0.6"/>
+                    <path d="M50 25 L75 35 L50 45 L25 35 Z" fill="#818CF8"/>
+                    <path d="M50 45 L75 35 L75 65 L50 75 Z" fill="#6366F1"/>
+                    <path d="M50 45 L25 35 L25 65 L50 75 Z" fill="#4F46E5"/>
+                    <line x1="37" y1="48" x2="50" y2="54" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <line x1="50" y1="54" x2="63" y2="48" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <line x1="37" y1="58" x2="50" y2="64" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <line x1="50" y1="64" x2="63" y2="58" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+                <h2>Drop Off Parcel</h2>
+            </div>
+            
+            <div id="waitingScreen">
+                <div class="waiting-content">
+                    <div class="waiting-icon">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="50" cy="50" r="40" fill="none" stroke="#9CA3AF" stroke-width="4" stroke-dasharray="5,5">
+                                <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="3s" repeatCount="indefinite"/>
+                            </circle>
+                            <path d="M35 45 L50 38 L65 45 L65 65 L50 72 L35 65 Z" fill="#9CA3AF" opacity="0.5"/>
+                            <path d="M50 38 L65 45 L50 52 L35 45 Z" fill="#9CA3AF"/>
+                            <path d="M50 52 L65 45 L65 65 L50 72 Z" fill="#9CA3AF" opacity="0.8"/>
+                            <path d="M50 52 L35 45 L35 65 L50 72 Z" fill="#9CA3AF" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <div class="status">Waiting for Assignment...</div>
+                    <div class="instructions" style="margin-top: 20px;">
+                        Use control panel below to fetch locker assignment
+                    </div>
+                </div>
+            </div>
+            
+            <div id="qrScreen" class="hidden">
+                <div class="locker-info">
+                    <div class="locker-label">Your Locker</div>
+                    <div class="locker-id" id="lockerIdDisplay">---</div>
+                </div>
+                
+                <div class="status">Scan QR Code to Unlock</div>
+                
+                <div id="qrcode"></div>
+                
+                <div class="timer" id="timer">Expires in: --:--</div>
+                
+                <div class="instructions">
+                    Point your phone camera at the QR code
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Panel (For Testing) -->
+    <div class="control-panel">
+  
+        <div id="connectionStatus" class="info-box status-warning">
+            <strong> Connecting to backend...</strong>
+        </div>
+ 
+    </div>
+
+    <script>
+        let countdownInterval;
+        let eventSource;
+        
+        // Connect to backend SSE stream for real-time QR updates
+        function connectToBackend() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource('http://192.168.1.6:3000/api/lcd/stream');
+            
+            eventSource.onopen = function() {
+                console.log(' Connected to backend LCD stream');
+                document.getElementById('connectionStatus').className = 'info-box status-connected';
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<strong> Connected - Waiting for locker assignment...</strong>';
+            };
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'connected') {
+                    console.log('LCD stream ready');
+                } else if (data.type === 'qr_update') {
+                    console.log('Received QR update:', data);
+                    displayQROnLCD(data.qr_content, data.locker_id, data.expires_at);
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error(' SSE connection error:', error);
+                document.getElementById('connectionStatus').className = 'info-box status-error';
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<strong> Backend not running! Start with: npm start</strong>';
+                
+                // Auto-reconnect after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('connectionStatus').className = 'info-box status-warning';
+                    document.getElementById('connectionStatus').innerHTML = 
+                        '<strong>🔄 Retrying connection...</strong>';
+                    connectToBackend();
+                }, 3000);
+            };
+        }
+        
+        // Connect on page load
+        connectToBackend();
+        
+        function displayQROnLCD(qrContent, lockerId, expiresAt) {
+            // Hide waiting screen, show QR screen
+            document.getElementById('waitingScreen').classList.add('hidden');
+            document.getElementById('qrScreen').classList.remove('hidden');
+            
+            // Display locker ID
+            document.getElementById('lockerIdDisplay').textContent = lockerId;
+            
+            // Clear previous QR code
+            const qrcodeDiv = document.getElementById('qrcode');
+            qrcodeDiv.innerHTML = '';
+            
+            // Generate QR code using QRCode.js (different API)
+            try {
+                new QRCode(qrcodeDiv, {
+                    text: qrContent,
+                    width: 350,
+                    height: 350,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                console.log(' QR code generated successfully');
+            } catch (error) {
+                console.error(' Error generating QR:', error);
+                qrcodeDiv.innerHTML = '<p style="color: red;">Error generating QR code</p>';
+                return;
+            }
+            
+            // Start countdown timer
+            startCountdown(expiresAt);
+        }
+        
+        function startCountdown(expiresAt) {
+            // Clear existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            const updateTimer = () => {
+                const now = Date.now();
+                const expireTime = new Date(expiresAt).getTime();
+                const timeLeft = Math.max(0, expireTime - now);
+                
+                if (timeLeft === 0) {
+                    clearInterval(countdownInterval);
+                    document.getElementById('timer').textContent = 'EXPIRED - Get new assignment';
+                    document.getElementById('timer').style.color = '#ff0000';
+                    return;
+                }
+                
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                
+                document.getElementById('timer').textContent = 
+                    `Expires in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            };
+            
+            updateTimer();
+            countdownInterval = setInterval(updateTimer, 1000);
+        }
+        
+        function resetLCD() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            document.getElementById('waitingScreen').classList.remove('hidden');
+            document.getElementById('qrScreen').classList.add('hidden');
+            document.getElementById('qrcode').innerHTML = '';
+            document.getElementById('message').innerHTML = '';
+            
+            console.log('🔄 LCD reset');
+        }
+    </script>
+</body>
+</html>
